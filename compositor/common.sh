@@ -1,4 +1,4 @@
-# Shared by the compositor recipes (build.sh: Weston 6.0.1, build-16.sh: Weston 16):
+# Shared helpers of the compositor recipe (build.sh: Weston 16.0.2):
 # paths, download cache, the console's -dev headers, the cross pkg-config wrapper,
 # the native wayland-scanner, the meson cross file, Wayland itself, and the packaging
 # step with its psc-check gate. Sourced, not run; the caller sets HERE (compositor/).

@@ -172,9 +172,8 @@ tar czf "$OUT/psc-retroarch.tar.gz" -C "$STAGE" .
 # (Sony's libwayland 1.12) it is expected NOT to load: recorded for information only.
 : > "$OUT/psc-check.txt"
 gate=0; n=0
-for pkg in "$REPO"/out/compositor/psc-weston-6.tar.gz "$REPO"/out/compositor/psc-weston.tar.gz "$REPO"/out/compositor/psc-weston-16.tar.gz; do
+for pkg in "$REPO"/out/compositor/psc-weston-16.tar.gz; do
   [ -f "$pkg" ] || continue
-  case "$pkg" in *psc-weston.tar.gz) [ -f "$REPO/out/compositor/psc-weston-6.tar.gz" ] && continue ;; esac
   COMBO=/tmp/ra-console; rm -rf "$COMBO"; mkdir -p "$COMBO/usr"
   ln -s /device/lib "$COMBO/lib"
   cp -a /device/usr/lib "$COMBO/usr/lib"

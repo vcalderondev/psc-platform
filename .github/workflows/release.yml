@@ -31,10 +31,8 @@ jobs:
       - uses: ./psc-platform/.github/actions/toolchain
         with:
           sysroot-token: ${{ secrets.PSC_SYSROOT_TOKEN }}
-      - name: Wayland 1.26 + Weston 6.0.1
+      - name: Wayland 1.26 + Weston 16.0.2
         run: $PSC_TOOLCHAIN/psc sh psc-platform/compositor/build.sh
-      - name: Weston 16.0.2
-        run: $PSC_TOOLCHAIN/psc sh psc-platform/compositor/build-16.sh
       - name: RetroArch 1.22
         run: $PSC_TOOLCHAIN/psc sh psc-platform/retroarch/build.sh
       - name: Debug helpers (psc-crash.so)
@@ -45,7 +43,7 @@ jobs:
         run: |
           O=psc-platform/out; D="$RUNNER_TEMP/dist"; mkdir -p "$D"
           sudo chown -R "$(id -u)" "$O"
-          cp $O/compositor/psc-weston-6.tar.gz $O/compositor/psc-weston-16.tar.gz \
+          cp $O/compositor/psc-weston-16.tar.gz \
              $O/retroarch/psc-retroarch.tar.gz $O/retroarch/retroarch.debug $O/cores/pcsx_rearmed_libretro.so "$D/"
           for f in $O/compositor/psc-check*.txt; do cp "$f" "$D/compositor-$(basename "$f")"; done
           cp $O/retroarch/psc-check.txt "$D/retroarch-psc-check.txt"

@@ -3,6 +3,19 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [2.0.0] - 2026-11-14
+
+### Removed
+- Weston 6.0.1 (`psc-weston-6.tar.gz`) and its patches. Weston 16 is the only PSC
+  compositor: on the console it runs Lumen at ~59 fps at 1080p and RetroArch 1.22 starts
+  and exits back to the frontend cleanly. Without it a frontend falls back to Sony's
+  Weston 1.11 and RetroArch's KMS context.
+
+### Changed
+- `compositor/build.sh` builds Weston 16.0.2 (was `build-16.sh`), patches in
+  `compositor/patches/` (was `patches-16/`); its gate report is `psc-check.txt`.
+- `versions.txt`: `weston`, `libdrm`, `libseat`, `libdisplay-info` (no `weston6`/`weston16`).
+
 ## [1.0.1] - 2026-11-14
 
 ### Fixed
