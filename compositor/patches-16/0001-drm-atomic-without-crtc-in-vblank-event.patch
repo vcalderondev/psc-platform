@@ -1,0 +1,47 @@
+PSC: use atomic KMS on the 4.4 MediaTek driver, which is DRIVER_ATOMIC but
+lacks DRM_CAP_CRTC_IN_VBLANK_EVENT and sends crtc_id = 0 in flip events.
+With exactly one CRTC (the PlayStation Classic has one, id 30) atomic is
+enabled anyway and a flip event with crtc_id 0 is matched to that CRTC.
+WESTON_DISABLE_ATOMIC=1 still selects legacy KMS (needs
+-Dallow-deprecated-modeset=true).
+
+diff --git a/libweston/backend-drm/kms.c b/libweston/backend-drm/kms.c
+index 7b6b184..b839616 100644
+--- a/libweston/backend-drm/kms.c
++++ b/libweston/backend-drm/kms.c
+@@ -2457,6 +2457,11 @@ atomic_flip_handler(int fd, unsigned int frame, unsigned int sec,
+ 			 WP_PRESENTATION_FEEDBACK_KIND_HW_CLOCK;
+ 
+ 	crtc = drm_crtc_find(device, crtc_id);
++	/* PSC: kernels older than 4.12 (DRM_CAP_CRTC_IN_VBLANK_EVENT unset)
++	 * leave crtc_id at 0 in flip events. That is only unambiguous with a
++	 * single CRTC, the only case init_kms_caps() enables atomic for. */
++	if (!crtc && crtc_id == 0 && wl_list_length(&device->crtc_list) == 1)
++		crtc = wl_container_of(device->crtc_list.next, crtc, link);
+ 	assert(crtc);
+ 
+ 	output = crtc->output;
+@@ -2612,6 +2617,23 @@ init_kms_caps(struct drm_device *device)
+ 	if (!getenv("WESTON_DISABLE_ATOMIC")) {
+ 		ret = drmSetClientCap(device->kms_device->fd, DRM_CLIENT_CAP_ATOMIC, 1);
+ 		device->atomic_modeset = ((ret == 0) && (cap == 1));
++		/* PSC: a pre-4.12 atomic driver (MediaTek on the PlayStation
++		 * Classic, kernel 4.4) lacks DRM_CAP_CRTC_IN_VBLANK_EVENT and
++		 * sends crtc_id = 0 in flip events. With one CRTC the event
++		 * can still be matched (atomic_flip_handler), so use atomic. */
++		if (ret == 0 && cap != 1) {
++			drmModeRes *res =
++				drmModeGetResources(device->kms_device->fd);
++
++			if (res && res->count_crtcs == 1) {
++				weston_log("DRM: no CRTC_IN_VBLANK_EVENT, single "
++					   "CRTC: using atomic anyway "
++					   "(WESTON_DISABLE_ATOMIC=1 for legacy KMS)\n");
++				device->atomic_modeset = true;
++			}
++			if (res)
++				drmModeFreeResources(res);
++		}
+ 	}
+ 	weston_log("DRM: %s atomic modesetting\n",
+ 		   device->atomic_modeset ? "supports" : "does not support");
