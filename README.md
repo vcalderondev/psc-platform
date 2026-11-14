@@ -88,3 +88,14 @@ checks the PowerVR libraries against the overlay's libdrm at symbol level only.
 
 `toolchain/host-ca.pem` (git-ignored) is the CA bundle the image uses for HTTPS
 downloads; put yours there before `toolchain/psc build`.
+
+## Releases and license
+
+Tagged releases (`vX.Y.Z`, see `CHANGELOG.md`) are built by `.github/workflows/release.yml`:
+every component from its pinned upstream version, gated with `psc-check`, published with
+`versions.txt` and `SHA256SUMS`. The console's root filesystem the builds link against is
+not part of this repository; CI fetches it from a private store (`PSC_SYSROOT_TOKEN`).
+Lumen PSX uses `.github/actions/toolchain` and the release assets.
+
+psc-platform is free software under the GNU GPL v3.0 or later (`LICENSE`); the upstream
+components keep their own licenses (Wayland/Weston: MIT, RetroArch and PCSX-ReARMed: GPL).

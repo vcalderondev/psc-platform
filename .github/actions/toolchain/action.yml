@@ -1,0 +1,53 @@
+name: PSC toolchain
+description: >
+  Builds (or restores from the Actions cache) the PSC cross toolchain image
+  psc-toolchain:gcc12-glibc2.24 and fetches the console's root filesystem (private,
+  never published) into $GITHUB_WORKSPACE/device-dump/sysroot, so
+  `$PSC_TOOLCHAIN/psc <cmd>` works with PSC_WORKSPACE=$GITHUB_WORKSPACE.
+inputs:
+  sysroot-token:
+    description: token with read access to the private sysroot repository
+    required: true
+  sysroot-repo:
+    description: private repository holding the console sysroot as a release asset
+    default: vcalderondev/psc-sysroot
+  sysroot-tag:
+    default: sysroot-v1
+outputs:
+  toolchain:
+    description: path of the toolchain folder (holds the psc wrapper)
+    value: ${{ steps.paths.outputs.toolchain }}
+runs:
+  using: composite
+  steps:
+    - id: paths
+      shell: bash
+      run: |
+        tc="$(cd "${{ github.action_path }}/../../../toolchain" && pwd)"
+        echo "toolchain=$tc" >> "$GITHUB_OUTPUT"
+        echo "PSC_TOOLCHAIN=$tc" >> "$GITHUB_ENV"
+        echo "PSC_WORKSPACE=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+        # the image trusts the host's CA bundle (a proxy CA locally; the stock one here)
+        cp /etc/ssl/certs/ca-certificates.crt "$tc/host-ca.pem"
+    - name: Console sysroot (private)
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.sysroot-token }}
+      run: |
+        [ -n "$GH_TOKEN" ] || { echo "::error::PSC_SYSROOT_TOKEN secret not set"; exit 1; }
+        gh release download "${{ inputs.sysroot-tag }}" -R "${{ inputs.sysroot-repo }}" \
+          -p psc-sysroot.tar.gz -D "$RUNNER_TEMP" --clobber
+        mkdir -p "$GITHUB_WORKSPACE/device-dump/sysroot"
+        tar xzf "$RUNNER_TEMP/psc-sysroot.tar.gz" -C "$GITHUB_WORKSPACE/device-dump/sysroot"
+        rm -f "$RUNNER_TEMP/psc-sysroot.tar.gz"
+        ls "$GITHUB_WORKSPACE/device-dump/sysroot"
+    - uses: docker/setup-buildx-action@v3
+    - name: Toolchain image (GCC 12, glibc 2.24; cached)
+      uses: docker/build-push-action@v6
+      with:
+        context: ${{ steps.paths.outputs.toolchain }}
+        tags: psc-toolchain:gcc12-glibc2.24
+        load: true
+        build-args: JOBS=4
+        cache-from: type=gha,scope=psc-toolchain
+        cache-to: type=gha,mode=max,scope=psc-toolchain
