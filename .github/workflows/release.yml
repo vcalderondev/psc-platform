@@ -39,6 +39,19 @@ jobs:
         run: $PSC_TOOLCHAIN/psc sh psc-platform/tools/debug/build.sh
       - name: PCSX-ReARMed
         run: $PSC_TOOLCHAIN/psc sh psc-platform/cores/pcsx_rearmed/build.sh
+      # Kernel modules for the stock Sony kernel (overlay.ko, xpad.ko), checked against the
+      # stock BOOTIMG2 image, a private input: Sony's binary is never published.
+      - name: Kernel modules (Sony 4.4.22 + overlay/xpad)
+        env:
+          GH_TOKEN: ${{ secrets.PSC_SYSROOT_TOKEN }}
+        run: |
+          gh release download psc-private-v1 -R vcalderondev/psc-sysroot -p stock-bootimg2.img -D "$RUNNER_TEMP" --clobber
+          PSC_STOCK_BOOTIMG="$RUNNER_TEMP/stock-bootimg2.img" sh psc-platform/kernel/build-modules.sh
+          rm -f "$RUNNER_TEMP/stock-bootimg2.img"
+      # Lumen's boot payload, UNSIGNED (no key in this repository or its CI): lumen's release
+      # signs it with .github/actions/boot-payload from a private input.
+      - name: Boot payload (unsigned)
+        run: sh psc-platform/boot/build-payload.sh --pack-only
       - name: Collect
         run: |
           O=psc-platform/out; D="$RUNNER_TEMP/dist"; mkdir -p "$D"
@@ -49,6 +62,10 @@ jobs:
           cp $O/retroarch/psc-check.txt "$D/retroarch-psc-check.txt"
           cp $O/cores/psc-check.txt "$D/cores-psc-check.txt"
           cp $O/debug/psc-crash.so "$D/"
+          cp $O/boot/payload.tar.gz "$D/psc-boot-payload.tar.gz"
+          tar czf "$D/psc-kernel-modules.tar.gz" -C $O/kernel modules/overlay.ko modules/xpad.ko \
+              modules/SHA256SUMS modules/check.txt config.diff
+          cp $O/kernel/modules/check.txt "$D/kernel-modules-check.txt"
           psc-platform/scripts/versions.sh "$TAG" > "$D/versions.txt"
           (cd "$D" && sha256sum * > SHA256SUMS)
           { cat "$RUNNER_TEMP/notes.md"; echo; echo "### Components"; echo '```'; cat "$D/versions.txt"; echo '```'; } > "$RUNNER_TEMP/body.md"

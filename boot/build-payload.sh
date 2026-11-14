@@ -80,7 +80,7 @@ if [ "$MODE" != sign ]; then
   else
     echo "   (no checked modules in out/kernel/modules: payload without overlay.ko/xpad.ko)"
   fi
-  printf 'lumen-payload %s %s\n' "$VER" "$(date -u -r "$EPOCH" +%Y-%m-%dT%H:%MZ 2>/dev/null || date -u +%Y-%m-%dT%H:%MZ)" > "$STAGE/payload/VERSION"
+  printf 'lumen-payload %s %s\n' "$VER" "$(date -u -d "@$EPOCH" +%Y-%m-%dT%H:%MZ 2>/dev/null || date -u -r "$EPOCH" +%Y-%m-%dT%H:%MZ)" > "$STAGE/payload/VERSION"
   chmod 755 "$STAGE/payload/start" "$STAGE/payload/bin/lumen-splash"
   chmod 644 "$STAGE/payload/VERSION" "$STAGE/payload/assets/"* 2>/dev/null || true
   sh -n "$STAGE/payload/start" || die "start: shell syntax error"

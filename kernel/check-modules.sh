@@ -16,14 +16,24 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(dirname "$HERE")"
 WS="${PSC_WORKSPACE:-$(dirname "$REPO")}"
 OUT="$REPO/out/kernel"
-EPB="${PSC_STOCK_EPB:-$(ls "$WS"/usb-backup/*/project_eris/backup/LRECOVERY.EPB 2>/dev/null | tail -1)}"
-[ -f "$EPB" ] || { echo "no LRECOVERY.EPB (set PSC_STOCK_EPB)"; exit 2; }
+# The stock kernel: PSC_STOCK_BOOTIMG (a raw BOOTIMG2 dump, e.g. the private CI input) or
+# the boot.img inside LRECOVERY.EPB from a USB backup (Eris' psc_backup of BOOTIMG2).
+if [ -n "$PSC_STOCK_BOOTIMG" ]; then
+  SRC="$(cd "$(dirname "$PSC_STOCK_BOOTIMG")" && pwd)/$(basename "$PSC_STOCK_BOOTIMG")"; KIND=img
+else
+  SRC="${PSC_STOCK_EPB:-$(ls "$WS"/usb-backup/*/project_eris/backup/LRECOVERY.EPB 2>/dev/null | tail -1)}"; KIND=epb
+fi
+[ -f "$SRC" ] || { echo "no stock kernel: set PSC_STOCK_BOOTIMG (BOOTIMG2 dump) or PSC_STOCK_EPB (LRECOVERY.EPB)"; exit 2; }
 [ -f "$OUT/Image.built" ] || { echo "run build-modules.sh first"; exit 2; }
-docker run --rm --network none -v "$OUT":/out -v "$(dirname "$EPB")":/epb:ro psc-kernel-build:stretch sh -c '
+docker run --rm --network none -v "$OUT":/out -v "$SRC":/stock-src:ro -e KIND="$KIND" psc-kernel-build:stretch sh -c '
 set -e
 cd /tmp
-python3 -c "import zipfile; open(\"boot.img\",\"wb\").write(zipfile.ZipFile(\"/epb/LRECOVERY.EPB\").read(\"boot.img\"))"
-echo "stock boot.img md5: $(md5sum < boot.img | cut -d" " -f1) (expect 28ce5f6de4981764411393310311b517)"
+if [ "$KIND" = epb ]; then
+  python3 -c "import zipfile; open(\"boot.img\",\"wb\").write(zipfile.ZipFile(\"/stock-src\").read(\"boot.img\"))"
+else cp /stock-src boot.img; fi
+m=$(md5sum < boot.img | cut -d" " -f1)
+echo "stock boot.img md5: $m (expect 28ce5f6de4981764411393310311b517)"
+[ "$m" = 28ce5f6de4981764411393310311b517 ] || { echo "FAIL this is not the stock Sony kernel"; exit 1; }
 dumpimage -T flat_dt -p 0 -o k.lz4 boot.img >/dev/null 2>&1 || true; [ -s k.lz4 ] || { echo "FAIL cannot extract the stock kernel"; exit 1; }; { lz4 -dcf k.lz4 > stock.Image 2>/dev/null || [ -s stock.Image ]; }  # legacy lz4 frame: exit 1 at the end, output complete
 strings -n 8 stock.Image | sort -u > stock.u; strings -n 8 /out/Image.built | sort -u > built.u
 echo "stock: $(strings stock.Image | grep -m1 "^Linux version")"
