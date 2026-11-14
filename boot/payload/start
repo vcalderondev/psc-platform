@@ -13,7 +13,7 @@
 #      console's /sbin/mount.exfat FUSE helper when present)
 #   3. no Lumen on the stick (or <stick>/lumen/disable-boot exists): give the console back
 #      to Sony's menu and park here (returning would make usb_watch run us again ~60 s later)
-#   4. otherwise stop Sony's UI for good, show Lumen's splash, run /media/lumen/boot.sh,
+#   4. otherwise let Sony's boot animation finish, stop Sony's UI for good, show Lumen's splash, run /media/lumen/boot.sh,
 #      and reboot when it returns (boot.sh's own contract)
 #
 # HARD RULES: no eMMC writes. Nothing here remounts / or /gaadata rw, touches a
@@ -85,8 +85,21 @@ mkdir -p /media/lumen/logs 2>/dev/null && USBLOG=/media/lumen/logs/payload.log
 [ -f /media/lumen/boot.sh ] || stock_menu "no /media/lumen/boot.sh on the stick"
 [ -e /media/lumen/disable-boot ] && stock_menu "/media/lumen/disable-boot present"
 
-# ---- 4. commit: Sony's UI goes away (the same sequence as Eris' loader with BOOT_QUICK=1)
+# ---- 4. commit: Sony's UI goes away (Eris' loader sequence, but the intro is not cut)
 [ -w /data/power/disable ] && echo 2 > /data/power/disable   # POWER ignored while we boot; boot.sh sets its own
+# Sony's boot animation (/usr/sony/bin/showLogo, the first thing sonyapp runs, before
+# ui_menu) plays to the end: it exits by itself, and sonyapp stays frozen, so ui_menu
+# never follows. Killing it right away cut the intro mid-way. Killed after 15 s anyway.
+# A finished showLogo stays a zombie (its parent is frozen): only live ones count.
+showlogo_running() {
+  for p in $(pidof showLogo 2>/dev/null); do
+    grep -q '^State:[[:space:]]*Z' "/proc/$p/status" 2>/dev/null || return 0
+  done
+  return 1
+}
+i=0
+while showlogo_running && [ $i -lt 150 ]; do sleep 0.1; i=$((i + 1)); done
+log "showLogo: $(showlogo_running && echo "still running after 15 s, killed" || echo "done") (waited $((i / 10)).$((i % 10)) s)"
 killall -s KILL showLogo 2>/dev/null
 killall -TERM sonyapp 2>/dev/null
 killall -CONT sonyapp 2>/dev/null
