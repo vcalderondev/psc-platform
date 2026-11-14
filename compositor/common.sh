@@ -71,6 +71,10 @@ native_scanner() {
        $NINJA -C build install >>"$B/native.log" 2>&1) || { tail -20 "$B/native.log"; exit 1; }
   fi
   wayland-scanner --version
+  # meson resolves dependency('wayland-scanner', native: true) with the build machine's
+  # pkg-config; in a cross build it does not use the default search path reliably (it
+  # failed on GitHub's runners), so point it at the native install explicitly
+  export PKG_CONFIG_PATH_FOR_BUILD=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/local/lib/$(uname -m)-linux-gnu/pkgconfig
 }
 
 cross_file() {

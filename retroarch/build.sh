@@ -69,6 +69,8 @@ if ! wayland-scanner --version 2>&1 | grep -q "$WAYLAND"; then
      ninja -C build install >>"$B/native.log" 2>&1) || { tail -20 "$B/native.log"; exit 1; }
 fi
 echo "wayland-scanner $(wayland-scanner --version 2>&1)"
+# build-machine pkg-config lookups of the native scanner (see compositor/common.sh)
+export PKG_CONFIG_PATH_FOR_BUILD=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/local/lib/$(uname -m)-linux-gnu/pkgconfig
 
 # ---- wayland 1.26 client libraries + wayland-protocols into the sysroot (link time)
 MCROSS=/opt/psc/meson-cross-ra.ini
