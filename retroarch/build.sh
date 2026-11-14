@@ -65,12 +65,13 @@ if ! wayland-scanner --version 2>&1 | grep -q "$WAYLAND"; then
   rm -rf "$B/wl-native" && mkdir -p "$B/wl-native" && tar xf "$CACHE/wayland-$WAYLAND.tar.xz" -C "$B/wl-native" --strip-components=1
   (cd "$B/wl-native" && env -u PKG_CONFIG -u PKG_CONFIG_LIBDIR -u CC -u CFLAGS -u LDFLAGS \
      -u CXX -u CXXFLAGS -u AR -u STRIP -u RANLIB -u PKG_CONFIG_SYSROOT_DIR \
-     meson setup build --prefix=/usr/local -Dlibraries=false -Dtests=false -Ddocumentation=false -Ddtd_validation=false >"$B/native.log" 2>&1 &&
+     meson setup build --prefix=/usr/local --libdir=lib -Dlibraries=false -Dtests=false -Ddocumentation=false -Ddtd_validation=false >"$B/native.log" 2>&1 &&
      ninja -C build install >>"$B/native.log" 2>&1) || { tail -20 "$B/native.log"; exit 1; }
 fi
 echo "wayland-scanner $(wayland-scanner --version 2>&1)"
 # build-machine pkg-config lookups of the native scanner (see compositor/common.sh)
-export PKG_CONFIG_PATH_FOR_BUILD=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/local/lib/$(uname -m)-linux-gnu/pkgconfig
+export PKG_CONFIG_PATH_FOR_BUILD=/usr/local/lib/pkgconfig
+  [ -f /usr/local/lib/pkgconfig/wayland-scanner.pc ] || { echo "native wayland-scanner.pc missing:"; find / -name wayland-scanner.pc 2>/dev/null; exit 1; }
 
 # ---- wayland 1.26 client libraries + wayland-protocols into the sysroot (link time)
 MCROSS=/opt/psc/meson-cross-ra.ini

@@ -70,14 +70,15 @@ native_scanner() {
     rm -rf "$B/wl-native" && mkdir -p "$B/wl-native" && tar xf "$CACHE/$tarball" -C "$B/wl-native" --strip-components=1
     (cd "$B/wl-native" && env -u PKG_CONFIG -u PKG_CONFIG_LIBDIR -u CC -u CFLAGS -u LDFLAGS \
        -u CXX -u CXXFLAGS -u AR -u STRIP -u RANLIB -u PKG_CONFIG_SYSROOT_DIR \
-       meson setup build --prefix=/usr/local -Dlibraries=false -Dtests=false -Ddocumentation=false -Ddtd_validation=false >"$B/native.log" 2>&1 &&
+       meson setup build --prefix=/usr/local --libdir=lib -Dlibraries=false -Dtests=false -Ddocumentation=false -Ddtd_validation=false >"$B/native.log" 2>&1 &&
        $NINJA -C build install >>"$B/native.log" 2>&1) || { tail -20 "$B/native.log"; exit 1; }
   fi
   wayland-scanner --version
   # meson resolves dependency('wayland-scanner', native: true) with the build machine's
   # pkg-config; in a cross build it does not use the default search path reliably (it
   # failed on GitHub's runners), so point it at the native install explicitly
-  export PKG_CONFIG_PATH_FOR_BUILD=/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/local/lib/$(uname -m)-linux-gnu/pkgconfig
+  export PKG_CONFIG_PATH_FOR_BUILD=/usr/local/lib/pkgconfig
+  [ -f /usr/local/lib/pkgconfig/wayland-scanner.pc ] || { echo "native wayland-scanner.pc missing:"; find / -name wayland-scanner.pc 2>/dev/null; exit 1; }
 }
 
 cross_file() {
