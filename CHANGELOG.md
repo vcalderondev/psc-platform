@@ -3,6 +3,20 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [1.0.1] - 2026-11-14
+
+### Fixed
+- RetroArch: segfault right after EGL initialisation under Weston on the console. With
+  GLES 3 enabled the build defines no `HAVE_OPENGLES2`, so the Wayland context had no
+  attribute list for the GLES 2 context the `gl` driver asks for (patch 0003). Verified
+  on the console: PCSX-ReARMed at 1920x1080, GLES 3.2 on the PowerVR GE8300, clean exit.
+- CI: the native `wayland-scanner` is found on GitHub's x86-64 runners.
+
+### Added
+- `tools/debug`: `psc-crash.so`, an LD_PRELOAD crash reporter (registers, stack scan,
+  library map, fsync'ed for the exFAT stick); RetroArch builds keep an unstripped
+  `retroarch.debug` for symbolication, published with each release.
+
 ## [1.0.0] - 2026-11-14
 
 First public release: the PlayStation Classic system layer, built from upstream sources.

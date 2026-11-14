@@ -37,6 +37,8 @@ jobs:
         run: $PSC_TOOLCHAIN/psc sh psc-platform/compositor/build-16.sh
       - name: RetroArch 1.22
         run: $PSC_TOOLCHAIN/psc sh psc-platform/retroarch/build.sh
+      - name: Debug helpers (psc-crash.so)
+        run: $PSC_TOOLCHAIN/psc sh psc-platform/tools/debug/build.sh
       - name: PCSX-ReARMed
         run: $PSC_TOOLCHAIN/psc sh psc-platform/cores/pcsx_rearmed/build.sh
       - name: Collect
@@ -44,10 +46,11 @@ jobs:
           O=psc-platform/out; D="$RUNNER_TEMP/dist"; mkdir -p "$D"
           sudo chown -R "$(id -u)" "$O"
           cp $O/compositor/psc-weston-6.tar.gz $O/compositor/psc-weston-16.tar.gz \
-             $O/retroarch/psc-retroarch.tar.gz $O/cores/pcsx_rearmed_libretro.so "$D/"
+             $O/retroarch/psc-retroarch.tar.gz $O/retroarch/retroarch.debug $O/cores/pcsx_rearmed_libretro.so "$D/"
           for f in $O/compositor/psc-check*.txt; do cp "$f" "$D/compositor-$(basename "$f")"; done
           cp $O/retroarch/psc-check.txt "$D/retroarch-psc-check.txt"
           cp $O/cores/psc-check.txt "$D/cores-psc-check.txt"
+          cp $O/debug/psc-crash.so "$D/"
           psc-platform/scripts/versions.sh "$TAG" > "$D/versions.txt"
           (cd "$D" && sha256sum * > SHA256SUMS)
           { cat "$RUNNER_TEMP/notes.md"; echo; echo "### Components"; echo '```'; cat "$D/versions.txt"; echo '```'; } > "$RUNNER_TEMP/body.md"
