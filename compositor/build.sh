@@ -122,5 +122,31 @@ mkdir -p "$OUT"
 if ls "$STAGE"/usr/lib/libwayland-egl* >/dev/null 2>&1; then echo "libwayland-egl must not be packaged"; exit 1; fi
 tar czf "$OUT/psc-weston.tar.gz" -C "$STAGE/usr" .
 ( cd "$STAGE/usr" && find . -type f | sort ) > "$OUT/psc-weston.files"
-psc-check $(find "$STAGE/usr/bin" "$STAGE/usr/lib" "$STAGE/usr/libexec" -type f -name '*' | xargs file | grep ELF | cut -d: -f1) || true
+# Check every binary against what the console will have at run time: its root
+# filesystem with this package overlaid on /usr. Any unresolved symbol (Weston loads
+# its modules with RTLD_NOW) or missing library fails the build.
+COMBO=/tmp/cw-console; rm -rf "$COMBO"; mkdir -p "$COMBO/usr"
+ln -s /device/lib "$COMBO/lib"
+cp -a /device/usr/lib "$COMBO/usr/lib" 2>/dev/null || { mkdir -p "$COMBO/usr/lib"; cp -a /device/usr/lib/. "$COMBO/usr/lib/"; }
+cp -a "$STAGE/usr/lib/." "$COMBO/usr/lib/"
+ELFS=$(find "$STAGE/usr/bin" "$STAGE/usr/lib" "$STAGE/usr/libexec" -type f | xargs file | grep ELF | cut -d: -f1)
+psc-check --device-root "$COMBO" $ELFS > "$OUT/psc-check.txt" 2>&1 || true
+# shell and screen-share modules are loaded into the weston executable and resolve
+# wet_* / text_backend_* against it: those symbols are not failures
+arm-linux-gnueabihf-nm -D --defined-only "$STAGE/usr/bin/weston" | awk '{print $3}' > "$B/weston-exports.txt"
+python3 - "$OUT/psc-check.txt" "$B/weston-exports.txt" <<'PY' || { echo "psc-check failed (see $OUT/psc-check.txt)"; exit 1; }
+import re, sys
+exports = set(open(sys.argv[2]).read().split())
+bad = []
+for block in re.split(r'\n(?=\[(?:OK |FAIL)\])', open(sys.argv[1]).read()):
+    if not block.startswith('[FAIL]'):
+        continue
+    reasons = [l.strip()[2:] for l in block.splitlines() if l.strip().startswith('- ')]
+    real = [r for r in reasons if not (r.startswith('unresolved symbol: ') and r.split(': ', 1)[1] in exports)]
+    if real or not reasons:
+        bad.append(block.splitlines()[0] + '\n   ' + '\n   '.join(real))
+print('\n'.join(bad))
+sys.exit(1 if bad else 0)
+PY
+echo "psc-check: $(grep -c '^\[OK' "$OUT/psc-check.txt") binaries load on the console with this overlay"
 ls -la "$OUT/psc-weston.tar.gz"
