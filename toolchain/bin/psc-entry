@@ -1,0 +1,33 @@
+#!/bin/sh
+# Container entrypoint: build /opt/psc/devlink, a link farm of the console's real
+# shared libraries (from the read-only /device mount = extracted ROOTFS1), so the
+# linker resolves -lSDL2, -lGLESv2, -lEGL, -lwayland-client... against the exact
+# binaries the PSC has. Headers still come from the glibc 2.24 sysroot.
+# glibc itself and the C++ runtime are left to the sysroot / static linking.
+set -e
+DEV="${PSC_DEVICE_ROOT:-/device}"
+LINK=/opt/psc/devlink
+if [ -d "$DEV/usr/lib" ] && [ ! -e "$LINK/.ready" ]; then
+  mkdir -p "$LINK"
+  for dir in "$DEV/lib" "$DEV/usr/lib" "$DEV/usr/local/lib"; do
+    for f in "$dir"/lib*.so*; do
+      [ -e "$f" ] || continue
+      base="$(basename "$f")"
+      case "$base" in
+        libc.so*|libc-*|libm.so*|libm-*|libpthread*|libdl.so*|libdl-*|librt.so*|librt-*|\
+        libresolv*|libutil*|libcrypt.so*|libcrypt-*|libnsl*|libanl*|libBrokenLocale*|\
+        libnss_*|libthread_db*|libmvec*|ld-linux*|libstdc++*|libgcc_s*) continue ;;
+      esac
+      [ -e "$LINK/$base" ] || ln -s "$f" "$LINK/$base"
+      # unversioned name for -lfoo (libfoo.so.1.2.3 -> libfoo.so)
+      dev="${base%%.so*}.so"
+      [ -e "$LINK/$dev" ] || ln -s "$f" "$LINK/$dev"
+      # SDL-style names: libSDL2-2.0.so.0 / libSDL2_image-2.0.so.0 -> libSDL2.so / libSDL2_image.so
+      case "$dev" in *-2.0.so)
+        short="${dev%-2.0.so}.so"; [ -e "$LINK/$short" ] || ln -s "$f" "$LINK/$short" ;;
+      esac
+    done
+  done
+  touch "$LINK/.ready"
+fi
+exec "$@"

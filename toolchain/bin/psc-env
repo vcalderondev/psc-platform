@@ -1,0 +1,8 @@
+#!/bin/sh
+# Source-able env for Makefile-based projects (libretro cores, RetroArch).
+export CC=arm-linux-gnueabihf-gcc CXX=arm-linux-gnueabihf-g++ AR=arm-linux-gnueabihf-ar
+export STRIP=arm-linux-gnueabihf-strip RANLIB=arm-linux-gnueabihf-ranlib
+export PSC_FLAGS="-mcpu=cortex-a35 -mfpu=neon-fp-armv8 -mfloat-abi=hard"
+export CFLAGS="$PSC_FLAGS" CXXFLAGS="$PSC_FLAGS"
+export LDFLAGS="-static-libstdc++ -static-libgcc"
+export PKG_CONFIG=/opt/psc/bin/psc-pkg-config

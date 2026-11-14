@@ -1,0 +1,4 @@
+#!/bin/sh
+export PKG_CONFIG_SYSROOT_DIR=/opt/psc/sysroot
+export PKG_CONFIG_LIBDIR=/opt/psc/sysroot/usr/lib/arm-linux-gnueabihf/pkgconfig:/opt/psc/sysroot/usr/share/pkgconfig:/opt/psc/sysroot/usr/lib/pkgconfig
+exec pkg-config "$@"

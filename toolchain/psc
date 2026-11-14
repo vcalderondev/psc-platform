@@ -1,0 +1,25 @@
+#!/bin/sh
+# Run a command inside the PSC cross toolchain container.
+#   ./toolchain/psc build            build the image (first time ~30-40 min)
+#   ./toolchain/psc <cmd...>         run <cmd> in /work (= the PSX project dir)
+#   ./toolchain/psc                  interactive shell
+# The console's real rootfs (device-dump/sysroot) is mounted read-only at
+# /device so psc-check can verify binaries against it.
+set -e
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# the folder mounted at /work: PSC_WORKSPACE, else the one holding device-dump/ (this
+# repo's parent in a workspace checkout), else this repo
+PROJECT="${PSC_WORKSPACE:-$(dirname "$HERE")}"
+[ -n "${PSC_WORKSPACE}" ] || [ -d "$PROJECT/device-dump" ] || { [ -d "$(dirname "$PROJECT")/device-dump" ] && PROJECT="$(dirname "$PROJECT")"; }
+IMAGE=psc-toolchain:gcc12-glibc2.24
+
+if [ "$1" = "build" ]; then
+  shift
+  exec docker build -t "$IMAGE" "$@" "$HERE"
+fi
+
+TTY=""; [ -t 0 ] && TTY="-it"
+exec docker run --rm $TTY \
+  -v "$PROJECT":/work \
+  -v "$PROJECT/device-dump/sysroot":/device:ro \
+  -w /work "$IMAGE" "${@:-bash}"
