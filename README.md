@@ -13,6 +13,8 @@ build artefacts; it has no frontend logic of its own.
 | `tools/debug/` | `psc-crash.so`, an LD_PRELOAD crash reporter (registers, stack scan, library map; resolve with `retroarch.debug`) | `out/debug/psc-crash.so` |
 | `cores/pcsx_rearmed/` | PCSX-ReARMed libretro core, upstream `libretro/pcsx_rearmed` (pinned commit), upstream's PSC target `classic_armv8_a35` (NEON GPU, ari64 dynarec) | `out/cores/pcsx_rearmed_libretro.so` |
 | `cores/build.sh` | more libretro cores from pinned upstream commits (`cores/cores.list`): FCEUmm (NES), Snes9x (SNES), Genesis Plus GX (Mega Drive), Gambatte (Game Boy / Color), gpSP (GBA); each with its PSC make target or Cortex-A35 tuning, static libstdc++, psc-check gate | `out/cores/<name>_libretro.so` |
+| `boot/` | Lumen's own USB boot payload: the signed `LDIAG.BIN` that Sony's `usb_watch` runs from the stick (mounts it, stops Sony's UI, splash, runs the frontend's `boot.sh`; nothing written to the eMMC). Built unsigned here (`build-payload.sh --pack-only`); signed by the frontend's release from a private input (`.github/actions/boot-payload`), verified with the console's own gpg/busybox under ARMv7 emulation | `out/boot/payload.tar.gz` (unsigned) |
+| `kernel/` | `overlay.ko` and `xpad.ko` for Sony's stock kernel (Linux 4.4.22, built from Sony's GPL source + Sony's defconfig with GCC 6.3), so a never-modded console runs the PSC compositor without a kernel flash; checked against the stock image (vermagic, symbols, provenance) | `out/kernel/modules/*.ko` |
 
 ## Use
 
@@ -22,6 +24,8 @@ toolchain/psc sh psc-platform/compositor/build.sh     # Wayland 1.26 + Weston 16
 toolchain/psc sh psc-platform/retroarch/build.sh      # RetroArch 1.22.2 (after a compositor build)
 toolchain/psc sh psc-platform/cores/pcsx_rearmed/build.sh
 toolchain/psc sh psc-platform/cores/build.sh all          # or one core: cores/build.sh snes9x
+sh psc-platform/kernel/build-modules.sh                   # overlay.ko + xpad.ko (docker, GCC 6.3)
+sh psc-platform/boot/build-payload.sh --pack-only         # unsigned boot payload (+ modules)
 ```
 
 RetroArch's gate checks it against the console with the compositor package overlaid
@@ -110,6 +114,8 @@ from the USB stick. Lumen PSX installs these packages.
 | RetroArch | — (Sony's own `pcsx`) | 1.8.8 | **1.22.2** | USB (`lumen/retroarch`) |
 | PCSX-ReARMed | — | PSC fork (2019) | **upstream** `libretro/pcsx_rearmed` (2026-10) | USB (`lumen/cores`) |
 | Joypad profiles | — | RetroArch 1.8.8 set | **v1.22.0** | USB |
+| Boot hook (`LDIAG.BIN`) | — | Eris' loader (installs to the eMMC unless `USB_ONLY=1`) | **Lumen's payload** (RAM only) | USB (`d8781dae-…/`) |
+| overlayfs, xpad | not in the kernel | flashed Eris kernel (BOOTIMG1) | **modules from RAM** on the stock kernel; built in on Eris' | USB (in the payload) |
 
 Kept from the console, unchanged: Linux 4.4.22, glibc 2.24, the PowerVR GE8300 driver
 (DDK 1.9) with its Mesa 17 EGL / GLES / `libgbm` (closed, it cannot be replaced; a gbm
@@ -126,3 +132,7 @@ Lumen PSX uses `.github/actions/toolchain` and the release assets.
 
 psc-platform is free software under the GNU GPL v3.0 or later (`LICENSE`); the upstream
 components keep their own licenses (Wayland/Weston: MIT, RetroArch and PCSX-ReARMed: GPL).
+The kernel modules are built from Sony's GPL-2.0 Linux source, imported in
+[lscorcia/linux-sony-psclassic](https://github.com/lscorcia/linux-sony-psclassic) (commit
+`d716d7e`, sha256-pinned in `kernel/build-modules.sh`), with `kernel/` as the build recipe.
+The boot payload is published unsigned; the signing key is not part of this repository.

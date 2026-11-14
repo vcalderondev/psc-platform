@@ -1,0 +1,144 @@
+#!/bin/sh
+# Lumen PSX boot payload: the "start" script of Lumen's own LDIAG.BIN.
+#
+# Who runs it: Sony's /usr/bin/usb_watch (usbwatch.service), at every boot with a USB
+# stick labelled SONY* plugged in, after it has verified the payload (gpg: signed by
+# siescph1000, encrypted to siecs2 = CSSOFT2 id d8781dae-...), extracted it to
+# /tmp/diag/d8781dae-.../payload/ (RAM) and UNMOUNTED the stick. cwd = that folder,
+# user root, stdout+stderr -> /tmp/diag/.tmp/.diag_d8781dae-....log
+#
+# What it does, and nothing else:
+#   1. freeze Sony's UI starter (SIGSTOP, reversible) so the stock menu does not come up
+#   2. mount the stick read-write on /media again (kernel vfat/ext4, or exFAT through the
+#      console's /sbin/mount.exfat FUSE helper when present)
+#   3. no Lumen on the stick (or <stick>/lumen/disable-boot exists): give the console back
+#      to Sony's menu and park here (returning would make usb_watch run us again ~60 s later)
+#   4. otherwise stop Sony's UI for good, show Lumen's splash, run /media/lumen/boot.sh,
+#      and reboot when it returns (boot.sh's own contract)
+#
+# HARD RULES: no eMMC writes. Nothing here remounts / or /gaadata rw, touches a
+# partition, installs a file outside RAM, or edits a Sony/Eris config. The only writes
+# are to RAM (/tmp, /run) and to the USB stick (our log), plus the runtime power flag
+# /data/power/disable that Sony's power manager, Eris and boot.sh all use the same way.
+# It behaves the same on a console that never had a mod ("virgin") and on one patched
+# by Project Eris / BleemSync: it only reads which of those it is, for the log.
+
+PAYLOAD="$(pwd)"
+VERSION="$(cat "${PAYLOAD}/VERSION" 2>/dev/null)"
+T0=$(cut -d' ' -f1 /proc/uptime)
+RAMLOG=/tmp/lumen-payload.log
+USBLOG=""
+log() {
+  line="[$(cut -d' ' -f1 /proc/uptime)] $*"
+  echo "${line}"
+  echo "${line}" >> "${RAMLOG}"
+  # the stick is FUSE (exFAT) on patched consoles: open-append-close per line, so the
+  # log survives a crash
+  [ -n "${USBLOG}" ] && echo "${line}" >> "${USBLOG}" 2>/dev/null
+}
+
+# ---- 1. freeze Sony's UI starter right away (same first step as Eris' loader). Only the
+# sonyapp script is stopped: it can no longer launch ui_menu, and SIGCONT undoes it.
+killall -STOP sonyapp 2>/dev/null
+log "lumen payload ${VERSION} start (uptime ${T0}s)"
+log "console: target=$(cat /etc/versions/target 2>/dev/null) variant=$(cat /etc/versions/variant 2>/dev/null)" \
+    "kernel=$(uname -r) $(uname -v | cut -c1-40)" \
+    "pe_kernel=$(cat /etc/versions/pe_kernel.ver 2>/dev/null || echo none)" \
+    "mount.exfat=$([ -x /sbin/mount.exfat ] && echo yes || echo no)" \
+    "overlayfs=$(grep -qw overlay /proc/filesystems && echo yes || echo no)"
+
+# Give the console back to Sony's menu and stay here. Used whenever Lumen cannot start.
+stock_menu() {
+  log "stock menu: $*"
+  if pidof sonyapp >/dev/null 2>&1; then
+    killall -CONT sonyapp 2>/dev/null          # it carries on where it was frozen
+  elif ! pidof ui_menu >/dev/null 2>&1; then
+    systemctl restart sonyapp.service 2>/dev/null || /usr/bin/sonyapp-launch &
+  fi
+  sync
+  # never return: usb_watch would unmount the stick and run this payload again in ~60 s
+  while :; do sleep 3600; done
+}
+
+# ---- 2. the stick, read-write. Same device choice as usb_watch (sda1/sdb1, label SONY*)
+dev="$(blkid | grep '^/dev/sd\(a\|b\)1:' | grep -E 'LABEL="SONY.{0,4}"' | awk -F: '{print $1}' | head -1)"
+[ -z "${dev}" ] && [ -e /dev/disk/by-label/SONY ] && dev=/dev/disk/by-label/SONY
+[ -n "${dev}" ] || stock_menu "no SONY* stick found"
+fstype="$(blkid "${dev}" | sed -n 's/.* TYPE="\([^"]*\)".*/\1/p')"
+mkdir -p /media
+if grep -q ' /media ' /proc/mounts; then
+  log "/media already mounted: $(grep ' /media ' /proc/mounts)"
+else
+  # vfat / ext4: the kernel. exfat / ntfs: mount runs /sbin/mount.<type> (FUSE), which
+  # exists on Eris/BleemSync-patched consoles only. A virgin console cannot read an
+  # exFAT stick at all, and then usb_watch never gets this far.
+  if ! mount -o rw "${dev}" /media; then
+    sleep 1
+    mount -o rw "${dev}" /media || stock_menu "cannot mount ${dev} (${fstype}) on /media"
+  fi
+fi
+log "mounted ${dev} (${fstype}): $(grep ' /media ' /proc/mounts | cut -d' ' -f3,4)"
+mkdir -p /media/lumen/logs 2>/dev/null && USBLOG=/media/lumen/logs/payload.log
+[ -n "${USBLOG}" ] && { echo "=== lumen payload ${VERSION} $(date)"; cat "${RAMLOG}"; } >> "${USBLOG}" 2>/dev/null
+
+# ---- 3. is there a Lumen to start?
+[ -f /media/lumen/boot.sh ] || stock_menu "no /media/lumen/boot.sh on the stick"
+[ -e /media/lumen/disable-boot ] && stock_menu "/media/lumen/disable-boot present"
+
+# ---- 4. commit: Sony's UI goes away (the same sequence as Eris' loader with BOOT_QUICK=1)
+[ -w /data/power/disable ] && echo 2 > /data/power/disable   # POWER ignored while we boot; boot.sh sets its own
+killall -s KILL showLogo 2>/dev/null
+killall -TERM sonyapp 2>/dev/null
+killall -CONT sonyapp 2>/dev/null
+i=0; while pidof sonyapp >/dev/null 2>&1 && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+killall -s KILL sonyapp 2>/dev/null
+killall -s KILL ui_menu 2>/dev/null
+# the internal games stay read-only (they already are: fstab mounts /gaadata ro)
+mount -o remount,ro /gaadata 2>/dev/null
+export XDG_RUNTIME_DIR=/run/user/0 HOME=/home/root
+
+# Kernel features Sony's stock kernel lacks, loaded from RAM (psc-platform/kernel:
+# built from Sony's source + defconfig, vermagic "4.4.22 SMP preempt ARMv7 p2v8").
+# Only on that exact stock build (a module built for one config must not go into a
+# kernel built with another), and only when the feature is missing: the Eris v47 and
+# 2019 ModMyClassic kernels have both built in. Nothing persists (no unload support:
+# a loaded module stays until power-off, then it is gone).
+STOCK_BUILD="#1 SMP PREEMPT Sun Sep 9 15:21:14 UTC 2018"
+FILESYSTEMS="${LUMEN_TEST_FILESYSTEMS:-/proc/filesystems}"   # overridable only for the offline tests
+SYSMODULE="${LUMEN_TEST_SYSMODULE:-/sys/module}"
+if [ "$(uname -r)" = 4.4.22 ] && [ "$(uname -v)" = "${STOCK_BUILD}" ] && [ ! -e /media/lumen/no-modules ]; then
+  if ! grep -qw overlay "${FILESYSTEMS}" && [ -f "${PAYLOAD}/modules/overlay.ko" ]; then
+    insmod "${PAYLOAD}/modules/overlay.ko" && log "module: overlay.ko loaded" || log "module: overlay.ko FAILED"
+  fi
+  if [ ! -d "${SYSMODULE}/xpad" ] && [ -f "${PAYLOAD}/modules/xpad.ko" ]; then
+    insmod "${PAYLOAD}/modules/xpad.ko" && log "module: xpad.ko loaded" || log "module: xpad.ko FAILED"
+  fi
+else
+  log "modules: not loaded (kernel $(uname -r) '$(uname -v)' is not the stock build, or no-modules)"
+fi
+
+/usr/bin/wait_sdl >/dev/null 2>&1       # Sony's Weston is up (it waits for the socket)
+
+# Splash on Sony's Weston 1.11 until boot.sh swaps the compositor. boot.sh already kills
+# processes named "sdl_display" (Eris' viewer had that name), so ours runs under it.
+splash_img=""
+for f in /media/lumen/assets/splash.png "${PAYLOAD}/assets/splash.png"; do
+  [ -f "$f" ] && { splash_img="$f"; break; }
+done
+if [ -n "${splash_img}" ] && [ -x "${PAYLOAD}/bin/lumen-splash" ]; then
+  ln -sf "${PAYLOAD}/bin/lumen-splash" /tmp/sdl_display
+  /tmp/sdl_display "${splash_img}" "${PAYLOAD}/assets/splash.png" >> "${RAMLOG}" 2>&1 &
+  log "splash: ${splash_img} (pid $!)"
+fi
+
+log "running /media/lumen/boot.sh ($(cut -d' ' -f1 /proc/uptime)s since power-on)"
+sync
+cd /home/root
+sh /media/lumen/boot.sh
+rc=$?
+log "boot.sh returned ${rc}: reboot"
+killall -s TERM sdl_display 2>/dev/null
+sync
+reboot
+# reboot is asynchronous (systemd): never fall back into usb_watch's loop
+while :; do sleep 60; done

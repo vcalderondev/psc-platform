@@ -3,6 +3,32 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [2.2.0] - 2026-11-14
+
+### Added
+- `boot/`: Lumen's own USB boot payload, replacing Project Eris' loader.
+  - It mounts the stick rw, stops Sony's UI, shows the splash (`lumen-splash`, the
+    console's SDL 2.0.4) and runs `/media/lumen/boot.sh`.
+  - It never writes the eMMC. With no Lumen on the stick, or `lumen/disable-boot`, it
+    hands the console back to Sony's menu.
+  - Release asset `psc-boot-payload.tar.gz` is **unsigned**. Consumers sign it with
+    `.github/actions/boot-payload`, from a private input, and verify it with the
+    console's own gpg 1.4.7 / busybox / bash (`verify-payload.sh`, ARMv7 emulation, plus
+    a tamper test).
+  - Verified on the console: exFAT and FAT32 sticks, hot-plug, the `disable-boot`
+    hand-back, a stick made from scratch from a release zip.
+- `kernel/`: `overlay.ko` + `xpad.ko` for Sony's stock kernel, so a never-modded console
+  gets overlayfs for the PSC compositor without a kernel flash. The payload loads them
+  from RAM only on the exact stock build, and only when the feature is missing.
+  - Built from Sony's GPL source (pinned) with Sony's defconfig and GCC 6.3.
+  - `check-modules.sh` checks them against the stock image: vermagic, no GOT
+    references, symbol coverage, and provenance (every export of the built kernel is in
+    the stock image).
+  - Release asset `psc-kernel-modules.tar.gz`.
+- `boot/release-layout.sh`: turns a frontend release zip into the ready-to-use stick
+  layout (`d8781dae-…/`, `lumen/`, `games/`), with no Eris.
+- `versions.txt`: `kernel` (the Sony source the modules are built from).
+
 ## [2.1.0] - 2026-11-14
 
 ### Added

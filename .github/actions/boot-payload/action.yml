@@ -1,0 +1,58 @@
+name: PSC boot payload (sign)
+description: >
+  Signs Lumen's boot payload (psc-boot-payload.tar.gz from a psc-platform release) into
+  the LDIAG.BIN that Sony's usb_watch runs, with the console keyring fetched from a
+  PRIVATE repository, then verifies it with the console's own gpg/busybox/bash (needs the
+  console sysroot: run the toolchain action first). Outputs the two stick files
+  d8781dae-c45c-4fc1-b961-e03eedebbffb/{diag,LDIAG.BIN} in out-dir. The keyring only
+  exists in $RUNNER_TEMP during this action and is deleted afterwards, also on failure.
+  Never run it on pull_request events: restrict the calling job to tag pushes and a
+  protected environment.
+inputs:
+  payload:
+    description: path of psc-boot-payload.tar.gz (unsigned payload, from the psc-platform release)
+    required: true
+  out-dir:
+    description: folder that receives d8781dae-c45c-4fc1-b961-e03eedebbffb/ (stick root layout)
+    required: true
+  private-token:
+    description: token with read access to the private repository holding the keyring
+    required: true
+  private-repo:
+    default: vcalderondev/psc-sysroot
+  private-tag:
+    default: psc-private-v1
+  keyring-asset:
+    description: tar.gz of the console's /home/root/.gnupg (secring.gpg, pubring.gpg, pass, trustdb.gpg)
+    default: psc-keyring.tar.gz
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm
+    - name: Sign and verify
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.private-token }}
+      run: |
+        set -euo pipefail
+        [ -n "$GH_TOKEN" ] || { echo "::error::private-token not set"; exit 1; }
+        [ -d "${PSC_WORKSPACE:-}/device-dump/sysroot/usr/bin" ] || { echo "::error::console sysroot missing: run the toolchain action first"; exit 1; }
+        REPO="$(cd "${{ github.action_path }}/../../.." && pwd)"
+        K="$RUNNER_TEMP/psc-keyring"
+        trap 'rm -rf "$K" "$RUNNER_TEMP/psc-keyring.tar.gz"' EXIT
+        umask 077; mkdir -p "$K"
+        gh release download "${{ inputs.private-tag }}" -R "${{ inputs.private-repo }}" \
+          -p "${{ inputs.keyring-asset }}" -D "$RUNNER_TEMP" --clobber
+        tar xzf "$RUNNER_TEMP/${{ inputs.keyring-asset }}" -C "$K"
+        rm -f "$RUNNER_TEMP/${{ inputs.keyring-asset }}"
+        [ -f "$K/.gnupg/secring.gpg" ] && K="$K/.gnupg"
+        for f in secring.gpg pubring.gpg pass; do [ -f "$K/$f" ] || { echo "::error::keyring asset lacks $f"; exit 1; }; done
+        umask 022
+        PSC_KEYRING="$K" sh "$REPO/boot/build-payload.sh" --sign "${{ inputs.payload }}"
+        grep -q "^RESULT: ACCEPTED" "$REPO/out/boot/verify.txt"
+        grep -q "^TAMPER: rejected" "$REPO/out/boot/verify.txt"
+        mkdir -p "${{ inputs.out-dir }}"
+        cp -R "$REPO/out/boot/stick/." "${{ inputs.out-dir }}/"
+        ls -laR "${{ inputs.out-dir }}"

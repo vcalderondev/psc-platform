@@ -1,3 +1,9 @@
 out/
 toolchain/host-ca.pem
 .DS_Store
+# boot payload: the console keyring and anything signed with it stay private
+.gnupg/
+*.gpg
+pass
+LDIAG.BIN*
+boot/keyring/
