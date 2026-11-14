@@ -10,9 +10,8 @@ build artefacts; it has no frontend logic of its own.
 | `toolchain/` | Docker image with GCC 12.3 targeting the PSC (armhf, glibc 2.24 sysroot), linking against the console's own libraries; `toolchain/psc <cmd>` runs a command in it, `psc-check` verifies a binary loads on the console | image `psc-toolchain:gcc12-glibc2.24` |
 | `compositor/` | Wayland 1.26.0 + wayland-protocols 1.45 + Weston 6.0.1 with the PSC patches (`compositor/patches/`), replacing Sony's Weston 1.11 at run time from RAM (overlay on `/usr`, nothing written to the eMMC) | `out/compositor/psc-weston-6.tar.gz` |
 | `compositor/` (16) | Weston 16.0.2 with its own patches (`compositor/patches-16/`), libdrm 2.4.124, libseat 0.9.1 and a gbm compat shim; same overlay model (see below) | `out/compositor/psc-weston-16.tar.gz` |
-
-Planned: RetroArch and libretro cores built for the PSC, so nothing depends on
-third-party binary bundles.
+| `retroarch/` | RetroArch 1.22.2 with PSC patches (`retroarch/patches/`: ALSA S16, HDMI without EDID for KMS): Wayland xdg-shell + EGL/GLES 3.2 (KMS/GBM as a fallback context), ALSA, udev; links libwayland-client 1.26 (from the compositor overlay) and the console's libwayland-egl; plus the libretro joypad profiles | `out/retroarch/psc-retroarch.tar.gz` |
+| `cores/pcsx_rearmed/` | PCSX-ReARMed libretro core, upstream `libretro/pcsx_rearmed` (pinned commit), upstream's PSC target `classic_armv8_a35` (NEON GPU, ari64 dynarec) | `out/cores/pcsx_rearmed_libretro.so` |
 
 ## Use
 
@@ -20,7 +19,16 @@ third-party binary bundles.
 toolchain/psc build                              # build the toolchain image (once, ~40 min)
 toolchain/psc sh psc-platform/compositor/build.sh     # Weston 6.0.1, from a workspace that holds device-dump/
 toolchain/psc sh psc-platform/compositor/build-16.sh  # Weston 16.0.2
+toolchain/psc sh psc-platform/retroarch/build.sh      # RetroArch 1.22.2 (after a compositor build)
+toolchain/psc sh psc-platform/cores/pcsx_rearmed/build.sh
 ```
+
+RetroArch's gate checks it against the console with each compositor package overlaid
+(`out/retroarch/psc-check.txt`): it needs that overlay (libwayland-client 1.26:
+`wl_proxy_marshal_flags`; Sony's Weston 1.11 also lacks xdg-shell), so a frontend must
+use it only while the PSC compositor runs. It uses no xdg-output (only wl_compositor,
+wl_shm and xdg_wm_base are required; viewporter, fractional-scale, idle-inhibit,
+decorations and the rest are optional). Cores must load on the bare console.
 
 Both recipes share `compositor/common.sh` (console headers, pkg-config wrapper,
 native wayland-scanner, Wayland, packaging) and end with the same gate: every binary in

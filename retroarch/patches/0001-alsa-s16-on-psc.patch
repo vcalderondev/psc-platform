@@ -1,0 +1,25 @@
+--- a/audio/common/alsa.c	2026-11-14 10:13:27
++++ b/audio/common/alsa.c	2026-11-14 10:13:27
+@@ -13,6 +13,8 @@
+  *  You should have received a copy of the GNU General Public License along with RetroArch.
+  *  If not, see <http://www.gnu.org/licenses/>.
+  */
++#include <stdlib.h>
++
+ #include <lists/string_list.h>
+ #include <string/stdstring.h>
+ 
+@@ -76,6 +78,13 @@
+ 
+    format = (snd_pcm_hw_params_test_format(*pcm, params, SND_PCM_FORMAT_FLOAT) == 0)
+          ? SND_PCM_FORMAT_FLOAT : SND_PCM_FORMAT_S16;
++#ifdef PSC_ALSA_S16
++   /* PlayStation Classic (MT8167 HDMI): "default" claims FLOAT support in the
++    * test but rejects it when the parameters are installed (EINVAL, no audio).
++    * Use S16 unless RARCH_ALSA_FLOAT is set. */
++   if (!getenv("RARCH_ALSA_FLOAT"))
++      format = SND_PCM_FORMAT_S16;
++#endif
+    stream_info->has_float = (format == SND_PCM_FORMAT_FLOAT);
+ 
+    RARCH_LOG("[ALSA] Using %s sample format for %s device \"%s\".\n",

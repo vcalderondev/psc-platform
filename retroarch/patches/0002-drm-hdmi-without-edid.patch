@@ -1,0 +1,129 @@
+diff --git a/gfx/common/drm_common.c b/gfx/common/drm_common.c
+index 10fb388..8a46ce2 100644
+--- a/gfx/common/drm_common.c
++++ b/gfx/common/drm_common.c
+@@ -13,6 +13,9 @@
+  *  If not, see <http://www.gnu.org/licenses/>.
+  */
+ 
++#include <stdlib.h>
++#include <string.h>
++
+ #include <compat/strl.h>
+ 
+ #include <retro_miscellaneous.h>
+@@ -63,6 +66,67 @@ bool drm_get_resources(int fd)
+    return true;
+ }
+ 
++/* PSC (MediaTek MT8167) fallback: the HDMI DDC/EDID read fails on the
++ * PlayStation Classic, so the connector reports no modes (and may not report
++ * "connected"). Weston works around it with a forced 1280x720 mode in
++ * weston.ini; do the same: CEA-861 VIC 4, 1280x720@60, 74.25 MHz. */
++static void drm_fill_cea_720p60(drmModeModeInfo *m)
++{
++   memset(m, 0, sizeof(*m));
++   m->clock       = 74250;
++   m->hdisplay    = 1280;
++   m->hsync_start = 1390;
++   m->hsync_end   = 1430;
++   m->htotal      = 1650;
++   m->vdisplay    = 720;
++   m->vsync_start = 725;
++   m->vsync_end   = 730;
++   m->vtotal      = 750;
++   m->vrefresh    = 60;
++   m->flags       = DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC;
++   m->type        = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
++   strlcpy(m->name, "1280x720", sizeof(m->name));
++}
++
++static bool drm_get_fallback_connector(int fd)
++{
++   unsigned i;
++   for (i = 0; (int)i < g_drm_resources->count_connectors; i++)
++   {
++      drmModeConnectorPtr conn = drmModeGetConnector(fd,
++            g_drm_resources->connectors[i]);
++      if (!conn)
++         continue;
++      if (     conn->connector_type == DRM_MODE_CONNECTOR_HDMIA
++            || conn->connector_type == DRM_MODE_CONNECTOR_HDMIB
++            || conn->connector_type == DRM_MODE_CONNECTOR_DVID)
++      {
++         if (conn->count_modes == 0)
++         {
++            drmModeModeInfo *mode = (drmModeModeInfo*)calloc(1, sizeof(*mode));
++            if (!mode)
++            {
++               drmModeFreeConnector(conn);
++               return false;
++            }
++            drm_fill_cea_720p60(mode);
++            /* libdrm frees conn->modes with drmFree() == free() */
++            free(conn->modes);
++            conn->modes       = mode;
++            conn->count_modes = 1;
++            RARCH_WARN("[DRM] Connector %d (HDMI) reports no modes (EDID unreadable?): "
++                  "using fallback 1280x720@60.\n", i);
++         }
++         RARCH_WARN("[DRM] Using HDMI connector %d as fallback (connection state %d).\n",
++               i, conn->connection);
++         g_drm_connector = conn;
++         return true;
++      }
++      drmModeFreeConnector(conn);
++   }
++   return false;
++}
++
+ bool drm_get_connector(int fd, unsigned monitor_index)
+ {
+    unsigned i;
+@@ -113,7 +177,7 @@ bool drm_get_connector(int fd, unsigned monitor_index)
+       g_drm_connector = NULL;
+    }
+ 
+-   if (!g_drm_connector)
++   if (!g_drm_connector && !drm_get_fallback_connector(fd))
+    {
+       RARCH_WARN("[DRM] Couldn't get device connector.\n");
+       return false;
+@@ -156,6 +220,16 @@ bool drm_get_encoder(int fd)
+       g_drm_encoder = NULL;
+    }
+ 
++   /* Connector not active yet (e.g. after the compositor released the
++    * display): no current encoder, take the first possible one. */
++   if (!g_drm_encoder && g_drm_connector->count_encoders > 0)
++   {
++      g_drm_encoder = drmModeGetEncoder(fd, g_drm_connector->encoders[0]);
++      if (g_drm_encoder)
++         RARCH_WARN("[DRM] Connector has no active encoder, using possible encoder %u.\n",
++               g_drm_encoder->encoder_id);
++   }
++
+    if (!g_drm_encoder)
+    {
+       RARCH_WARN("[DRM] Couldn't find DRM encoder.\n");
+@@ -178,6 +252,20 @@ bool drm_get_encoder(int fd)
+ void drm_setup(int fd)
+ {
+    g_crtc_id        = g_drm_encoder->crtc_id;
++   /* Inactive encoder: pick the first CRTC it can drive. */
++   if (!g_crtc_id)
++   {
++      unsigned i;
++      for (i = 0; (int)i < g_drm_resources->count_crtcs; i++)
++      {
++         if (g_drm_encoder->possible_crtcs & (1u << i))
++         {
++            g_crtc_id = g_drm_resources->crtcs[i];
++            RARCH_WARN("[DRM] Encoder has no active CRTC, using CRTC %u.\n", g_crtc_id);
++            break;
++         }
++      }
++   }
+    g_connector_id   = g_drm_connector->connector_id;
+    g_orig_crtc      = drmModeGetCrtc(fd, g_crtc_id);
+    if (!g_orig_crtc)
