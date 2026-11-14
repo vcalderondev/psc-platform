@@ -96,6 +96,27 @@ killall -s KILL ui_menu 2>/dev/null
 # the internal games stay read-only (they already are: fstab mounts /gaadata ro)
 mount -o remount,ro /gaadata 2>/dev/null
 export XDG_RUNTIME_DIR=/run/user/0 HOME=/home/root
+
+# Kernel features Sony's stock kernel lacks, loaded from RAM (psc-platform/kernel:
+# built from Sony's source + defconfig, vermagic "4.4.22 SMP preempt ARMv7 p2v8").
+# Only on that exact stock build (a module built for one config must not go into a
+# kernel built with another), and only when the feature is missing: the Eris v47 and
+# 2019 ModMyClassic kernels have both built in. Nothing persists (no unload support:
+# a loaded module stays until power-off, then it is gone).
+STOCK_BUILD="#1 SMP PREEMPT Sun Sep 9 15:21:14 UTC 2018"
+FILESYSTEMS="${LUMEN_TEST_FILESYSTEMS:-/proc/filesystems}"   # overridable only for the offline tests
+SYSMODULE="${LUMEN_TEST_SYSMODULE:-/sys/module}"
+if [ "$(uname -r)" = 4.4.22 ] && [ "$(uname -v)" = "${STOCK_BUILD}" ] && [ ! -e /media/lumen/no-modules ]; then
+  if ! grep -qw overlay "${FILESYSTEMS}" && [ -f "${PAYLOAD}/modules/overlay.ko" ]; then
+    insmod "${PAYLOAD}/modules/overlay.ko" && log "module: overlay.ko loaded" || log "module: overlay.ko FAILED"
+  fi
+  if [ ! -d "${SYSMODULE}/xpad" ] && [ -f "${PAYLOAD}/modules/xpad.ko" ]; then
+    insmod "${PAYLOAD}/modules/xpad.ko" && log "module: xpad.ko loaded" || log "module: xpad.ko FAILED"
+  fi
+else
+  log "modules: not loaded (kernel $(uname -r) '$(uname -v)' is not the stock build, or no-modules)"
+fi
+
 /usr/bin/wait_sdl >/dev/null 2>&1       # Sony's Weston is up (it waits for the socket)
 
 # Splash on Sony's Weston 1.11 until boot.sh swaps the compositor. boot.sh already kills

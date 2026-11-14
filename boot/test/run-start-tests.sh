@@ -7,8 +7,10 @@
 #   sh psc-platform/boot/test/run-start-tests.sh      (from the workspace folder)
 #
 # Scenarios
-#   patched-exfat    Eris/BleemSync-patched console (mount.exfat present), exFAT stick, Lumen installed
-#   virgin-fat32     never-modded console (no mount.exfat, no overlayfs), FAT32 stick, Lumen installed
+#   patched-exfat    Eris/BleemSync-patched console (mount.exfat present, v47 kernel: no module
+#                    may be loaded), exFAT stick, Lumen installed
+#   virgin-fat32     never-modded console (no mount.exfat, stock kernel without overlayfs/xpad:
+#                    overlay.ko + xpad.ko must be loaded before boot.sh), FAT32 stick, Lumen installed
 #   virgin-ext4      never-modded console, ext4 stick, Lumen installed
 #   no-lumen         stick without /lumen/boot.sh                    -> Sony menu, parked
 #   disabled         <stick>/lumen/disable-boot present              -> Sony menu, parked
@@ -41,7 +43,16 @@ setup() {  # scenario
                          printf "#!/bin/sh\nexit 0\n" > /sbin/mount.exfat; chmod +x /sbin/mount.exfat;;
                *) echo user > /etc/versions/variant;; esac
   FS=exfat; case "$1" in *fat32) FS=vfat;; *ext4) FS=ext4;; esac
-  for c in killall systemctl reboot pidof; do stub $c "echo \"$c \$*\" >> /calls"; done
+  for c in killall systemctl reboot pidof insmod; do stub $c "echo \"$c \$*\" >> /calls"; done
+  # kernel: patched consoles run Eris v47 (overlay + xpad built in), virgin ones Sony stock
+  mkdir -p /tmp/diag/d8781dae/payload/modules /tmp/sysmod; : > /tmp/diag/d8781dae/payload/modules/overlay.ko; : > /tmp/diag/d8781dae/payload/modules/xpad.ko
+  case "$1" in patched*)
+    stub uname "case \"\$1\" in -r) echo 4.4.22;; -v) echo \"#1 SMP PREEMPT Sun Feb 23 19:09:17 UTC 2020\";; *) echo Linux;; esac"
+    printf "nodev\tsysfs\n\text4\nnodev\toverlay\n" > /tmp/filesystems; mkdir -p /tmp/sysmod/xpad;;
+  *)
+    stub uname "case \"\$1\" in -r) echo 4.4.22;; -v) echo \"#1 SMP PREEMPT Sun Sep 9 15:21:14 UTC 2018\";; *) echo Linux;; esac"
+    printf "nodev\tsysfs\n\text4\n\tvfat\nnodev\tfuse\n" > /tmp/filesystems;;
+  esac
   # pidof: sonyapp exists until killed with TERM/KILL
   stub pidof "echo \"pidof \$*\" >> /calls; [ \"\$1\" = sonyapp ] && ! grep -qE \"killall (-TERM|-s KILL) sonyapp\" /calls"
   if [ "$1" = no-stick ]; then stub blkid "exit 0"
@@ -63,7 +74,7 @@ setup() {  # scenario
 }
 run() {  # scenario expected(lumen|stock)
   setup "$1"
-  ( cd /tmp/diag/d8781dae/payload && PATH=/stubs:$PATH timeout 20 $LD /sr/bin/bash ./start > /tmp/start.out 2>&1 ); rc=$?
+  ( cd /tmp/diag/d8781dae/payload && LUMEN_TEST_FILESYSTEMS=/tmp/filesystems LUMEN_TEST_SYSMODULE=/tmp/sysmod PATH=/stubs:$PATH timeout 20 $LD /sr/bin/bash ./start > /tmp/start.out 2>&1 ); rc=$?
   ok=1; why=""
   bad=$(grep -E "remount,rw|mmcblk|by-partlabel|dd |mkfs|upgrade_app" /calls /tmp/start.out)
   [ -n "$bad" ] && { ok=0; why="$why eMMC-touching call: $bad;"; }
@@ -74,16 +85,24 @@ run() {  # scenario expected(lumen|stock)
     grep -q "killall -s KILL ui_menu" /calls || { ok=0; why="$why ui_menu not stopped;"; }
     grep -q "^mount -o rw /dev/sda1 /media" /calls || { ok=0; why="$why stick not mounted rw;"; }
     [ "$(sed -n 1p /calls)" = "killall -STOP sonyapp" ] || { ok=0; why="$why first action is not the freeze;"; }
+    case "$1" in
+      patched*) grep -q "^insmod" /calls && { ok=0; why="$why module loaded into a non-stock kernel;"; } ;;
+      *) grep -q "^insmod .*/modules/overlay.ko" /calls && grep -q "^insmod .*/modules/xpad.ko" /calls ||
+           { ok=0; why="$why overlay.ko/xpad.ko not loaded on the stock kernel;"; }
+         [ "$(grep -n "^insmod" /calls | head -1 | cut -d: -f1)" -lt "$(grep -n "^boot.sh ran" /calls | cut -d: -f1)" ] ||
+           { ok=0; why="$why modules not loaded before boot.sh;"; } ;;
+    esac
   else
     grep -q "boot.sh ran" /calls && { ok=0; why="$why boot.sh ran;"; }
     grep -qE "killall -s KILL (ui_menu|sonyapp)|killall -TERM sonyapp" /calls && { ok=0; why="$why Sony UI killed;"; }
     grep -q "killall -CONT sonyapp" /calls || { ok=0; why="$why sonyapp not resumed;"; }
     grep -q "^PARKED" /calls || { ok=0; why="$why returned to usb_watch instead of parking;"; }
     grep -q "^reboot" /calls && { ok=0; why="$why rebooted;"; }
+    grep -q "^insmod" /calls && { ok=0; why="$why module loaded on the Sony-menu path;"; }
     [ "$(cat /data/power/disable)" = 0 ] || { ok=0; why="$why power flag changed;"; }
   fi
   if [ $ok = 1 ]; then echo "PASS $1 -> $2"; else echo "FAIL $1 -> $2:$why"; fail=1; fi
-  sed "s/^/    | /" /calls; grep -E "stock menu|mounted|console:|boot.sh returned" /tmp/start.out | sed "s/^/    > /"
+  sed "s/^/    | /" /calls; grep -E "stock menu|mounted|console:|boot.sh returned|module" /tmp/start.out | sed "s/^/    > /"
 }
 run patched-exfat lumen
 run virgin-fat32 lumen
