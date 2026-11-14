@@ -1,0 +1,27 @@
+Wayland context: GLES 2 config attributes when built with GLES 3 only
+
+With HAVE_OPENGLES3 the build defines no HAVE_OPENGLES2, so the Wayland context had no
+attribute list for a GLES 2 context (the gl driver asks for one): attrib_ptr stayed NULL
+and egl_init_context() dereferenced it (segfault on the PSC, right after "EGL version").
+The KMS context has no such guard.
+
+--- a/gfx/drivers_context/wayland_ctx.c
++++ b/gfx/drivers_context/wayland_ctx.c
+@@ -175,7 +175,7 @@
+    };
+ 
+ #ifdef HAVE_OPENGLES
+-#ifdef HAVE_OPENGLES2
++#if defined(HAVE_OPENGLES2) || defined(HAVE_OPENGLES3)
+    static const EGLint egl_attribs_gles[] = {
+       WL_EGL_ATTRIBS_BASE,
+       EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+@@ -221,7 +221,7 @@
+          else
+ #endif
+ #endif
+-#ifdef HAVE_OPENGLES2
++#if defined(HAVE_OPENGLES2) || defined(HAVE_OPENGLES3)
+             attrib_ptr = egl_attribs_gles;
+ #endif
+ #endif
