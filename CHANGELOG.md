@@ -3,6 +3,14 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [2.2.1] - 2026-11-14
+
+### Fixed
+- `boot/`: the payload lets Sony's boot animation (`showLogo`) play to the end instead of
+  cutting it. Sony's UI stays frozen, so its menu never follows. A finished `showLogo`
+  stays a zombie under the frozen `sonyapp`, which busybox `pidof` still lists, so only
+  live ones are waited for (15 s cap). Verified on the console.
+
 ## [2.2.0] - 2026-11-14
 
 ### Added
