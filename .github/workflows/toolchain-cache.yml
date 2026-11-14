@@ -1,0 +1,20 @@
+# Keeps the toolchain image in the Actions cache of the default branch: caches created
+# on a tag are only visible to that tag, the default branch's are visible to every tag,
+# so release builds reuse the image instead of rebuilding GCC (~12 min).
+name: toolchain-cache
+on:
+  push:
+    branches: [main]
+    paths: ['toolchain/**', '.github/actions/toolchain/**']
+  workflow_dispatch:
+jobs:
+  warm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: psc-platform
+      - uses: ./psc-platform/.github/actions/toolchain
+        with:
+          sysroot-token: ${{ secrets.PSC_SYSROOT_TOKEN }}
