@@ -14,7 +14,10 @@ GL=https://gitlab.freedesktop.org/wayland
 NINJA="ninja -j4"   # memory-friendly: the build host runs other work too
 
 # run a build step quietly; on failure show the end of its log
-step() { name=$1; shift; echo "== $name"; if ! "$@" > "$B/$name.log" 2>&1; then echo "FAILED: $name"; tail -40 "$B/$name.log"; exit 1; fi; }
+step() { name=$1; shift; echo "== $name"; if ! "$@" > "$B/$name.log" 2>&1; then echo "FAILED: $name"; tail -40 "$B/$name.log"
+  # meson: the dependency lookups behind the failure
+  for ml in build/meson-logs/meson-log.txt; do [ -f "$ml" ] && { echo "--- $PWD/$ml (pkg-config)"; grep -n -B2 -A6 -i 'pkg-config\|pkgconfig\|PKG_CONFIG' "$ml" | tail -80; }; done
+  exit 1; fi; }
 fetch() { [ -s "$CACHE/$2" ] || wget -q -T 30 -t 3 -O "$CACHE/$2.part" "$1" && mv -f "$CACHE/$2.part" "$CACHE/$2" 2>/dev/null || true; [ -s "$CACHE/$2" ] || { echo "download failed: $1"; exit 1; }; }
 # fetch, then check the file against a pinned sha256
 fetch_sha() { fetch "$1" "$2"; echo "$3  $CACHE/$2" | sha256sum -c --quiet - || { echo "checksum mismatch: $2"; exit 1; }; }

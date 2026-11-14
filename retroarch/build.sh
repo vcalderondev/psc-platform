@@ -158,7 +158,7 @@ step retroarch-build make -j"$JOBS"
 
 # ---- package
 rm -rf "$STAGE" && mkdir -p "$STAGE/bin" "$STAGE/share/retroarch/autoconfig"
-cp retroarch "$STAGE/bin/retroarch"; $STRIP "$STAGE/bin/retroarch"
+cp retroarch "$STAGE/bin/retroarch"; cp retroarch "$OUT/retroarch.debug"; $STRIP "$STAGE/bin/retroarch"   # unstripped copy: symbols for crash reports
 rm -rf "$B/ac" && mkdir -p "$B/ac" && tar xzf "$CACHE/joypad-autoconfig-$AUTOCONFIG.tar.gz" -C "$B/ac" --strip-components=1
 cp -r "$B/ac/udev" "$STAGE/share/retroarch/autoconfig/udev"
 mkdir -p "$OUT"
