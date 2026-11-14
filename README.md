@@ -12,6 +12,7 @@ build artefacts; it has no frontend logic of its own.
 | `retroarch/` | RetroArch 1.22.2 with PSC patches (`retroarch/patches/`: ALSA S16, HDMI without EDID for KMS): Wayland xdg-shell + EGL/GLES 3.2 (KMS/GBM as a fallback context), ALSA, udev; links libwayland-client 1.26 (from the compositor overlay) and the console's libwayland-egl; plus the libretro joypad profiles | `out/retroarch/psc-retroarch.tar.gz` |
 | `tools/debug/` | `psc-crash.so`, an LD_PRELOAD crash reporter (registers, stack scan, library map; resolve with `retroarch.debug`) | `out/debug/psc-crash.so` |
 | `cores/pcsx_rearmed/` | PCSX-ReARMed libretro core, upstream `libretro/pcsx_rearmed` (pinned commit), upstream's PSC target `classic_armv8_a35` (NEON GPU, ari64 dynarec) | `out/cores/pcsx_rearmed_libretro.so` |
+| `cores/build.sh` | more libretro cores from pinned upstream commits (`cores/cores.list`): FCEUmm (NES), Snes9x (SNES), Genesis Plus GX (Mega Drive), Gambatte (Game Boy / Color), gpSP (GBA); each with its PSC make target or Cortex-A35 tuning, static libstdc++, psc-check gate | `out/cores/<name>_libretro.so` |
 
 ## Use
 
@@ -20,6 +21,7 @@ toolchain/psc build                              # build the toolchain image (on
 toolchain/psc sh psc-platform/compositor/build.sh     # Wayland 1.26 + Weston 16.0.2, from a workspace that holds device-dump/
 toolchain/psc sh psc-platform/retroarch/build.sh      # RetroArch 1.22.2 (after a compositor build)
 toolchain/psc sh psc-platform/cores/pcsx_rearmed/build.sh
+toolchain/psc sh psc-platform/cores/build.sh all          # or one core: cores/build.sh snes9x
 ```
 
 RetroArch's gate checks it against the console with the compositor package overlaid

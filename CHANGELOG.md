@@ -3,6 +3,15 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [2.1.0] - 2026-11-14
+
+### Added
+- Cores for more systems, from pinned upstream commits with a generic recipe
+  (`cores/build.sh` + `cores/cores.list`: each core's PSC make target, static libstdc++,
+  psc-check gate): FCEUmm (NES), Snes9x (SNES), Genesis Plus GX (Mega Drive / Genesis),
+  Gambatte (Game Boy / Color), gpSP with the ARM dynarec (GBA). NES and SNES verified on
+  the console.
+
 ## [2.0.0] - 2026-11-14
 
 ### Removed

@@ -39,15 +39,18 @@ jobs:
         run: $PSC_TOOLCHAIN/psc sh psc-platform/tools/debug/build.sh
       - name: PCSX-ReARMed
         run: $PSC_TOOLCHAIN/psc sh psc-platform/cores/pcsx_rearmed/build.sh
+      - name: Cores (cores/cores.list)
+        run: $PSC_TOOLCHAIN/psc sh psc-platform/cores/build.sh all
       - name: Collect
         run: |
           O=psc-platform/out; D="$RUNNER_TEMP/dist"; mkdir -p "$D"
           sudo chown -R "$(id -u)" "$O"
           cp $O/compositor/psc-weston-16.tar.gz \
-             $O/retroarch/psc-retroarch.tar.gz $O/retroarch/retroarch.debug $O/cores/pcsx_rearmed_libretro.so "$D/"
+             $O/retroarch/psc-retroarch.tar.gz $O/retroarch/retroarch.debug $O/cores/*_libretro.so "$D/"
           for f in $O/compositor/psc-check*.txt; do cp "$f" "$D/compositor-$(basename "$f")"; done
           cp $O/retroarch/psc-check.txt "$D/retroarch-psc-check.txt"
           cp $O/cores/psc-check.txt "$D/cores-psc-check.txt"
+          cat $O/cores/*.psc-check.txt >> "$D/cores-psc-check.txt"
           cp $O/debug/psc-crash.so "$D/"
           psc-platform/scripts/versions.sh "$TAG" > "$D/versions.txt"
           (cd "$D" && sha256sum * > SHA256SUMS)

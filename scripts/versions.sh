@@ -13,3 +13,4 @@ echo "libdisplay-info=$(v compositor/build.sh DISPLAYINFO)"
 echo "retroarch=RetroArch $(v retroarch/build.sh RA)"
 echo "joypad-autoconfig=$(v retroarch/build.sh AUTOCONFIG)"
 echo "pcsx_rearmed=libretro/pcsx_rearmed@$(v cores/pcsx_rearmed/build.sh COMMIT)"
+grep -v '^#' cores/cores.list | awk 'NF { print $1 "=" $2 "@" $3 }'
