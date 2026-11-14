@@ -47,13 +47,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PSC_SYSROOT_TOKEN }}
         run: |
+          sudo chown -R "$(id -u)" psc-platform/out   # earlier container steps leave it root-owned
           gh release download psc-private-v1 -R vcalderondev/psc-sysroot -p stock-bootimg2.img -D "$RUNNER_TEMP" --clobber
           PSC_STOCK_BOOTIMG="$RUNNER_TEMP/stock-bootimg2.img" sh psc-platform/kernel/build-modules.sh
           rm -f "$RUNNER_TEMP/stock-bootimg2.img"
       # Lumen's boot payload, UNSIGNED (no key in this repository or its CI): lumen's release
       # signs it with .github/actions/boot-payload from a private input.
       - name: Boot payload (unsigned)
-        run: sh psc-platform/boot/build-payload.sh --pack-only
+        run: |
+          sudo chown -R "$(id -u)" psc-platform/out
+          sh psc-platform/boot/build-payload.sh --pack-only
       - name: Collect
         run: |
           O=psc-platform/out; D="$RUNNER_TEMP/dist"; mkdir -p "$D"
