@@ -1,0 +1,68 @@
+diff -ruN a/libweston/compositor-drm.c b/libweston/compositor-drm.c
+--- a/libweston/compositor-drm.c	2026-11-14 03:54:13
++++ b/libweston/compositor-drm.c	2026-11-14 03:54:13
+@@ -323,6 +323,10 @@
+ 	struct wl_list plane_list;
+ 	int sprites_are_broken;
+ 	int sprites_hidden;
++	/* PSC: non-atomic KMS (see init_kms_caps), but a fullscreen client buffer may
++	 * still be promoted to the primary plane with drmModePageFlip, skipping the GL
++	 * composition pass. Overlay planes stay disabled. */
++	bool legacy_scanout;
+ 
+ 	void *repaint_data;
+ 
+@@ -2017,7 +2021,7 @@
+ 	struct drm_fb *fb;
+ 	pixman_box32_t *extents;
+ 
+-	assert(!b->sprites_are_broken);
++	assert(!b->sprites_are_broken || b->legacy_scanout);
+ 	assert(mode == DRM_OUTPUT_PROPOSE_STATE_PLANES_ONLY);
+ 
+ 	/* Check the view spans exactly the output size, calculated in the
+@@ -3237,7 +3241,9 @@
+ 		PLACED_ON_PLANE,
+ 	} availability = NO_PLANES;
+ 
+-	assert(!b->sprites_are_broken);
++	/* legacy_scanout: the primary plane only, never legacy SetPlane overlays */
++	if (b->sprites_are_broken)
++		return NULL;
+ 
+ 	fb = drm_fb_get_from_view(output_state, ev);
+ 	if (!fb) {
+@@ -3873,6 +3879,17 @@
+ 			drm_debug(b, "\t[repaint] could not build mixed-mode "
+ 				     "state, trying renderer-only\n");
+ 		}
++	} else if (b->legacy_scanout && !output->virtual) {
++		/* Legacy KMS: only the scanout plane (and the cursor) can be used.
++		 * PLANES_ONLY succeeds only when the topmost view covers the whole
++		 * output and can be page-flipped as is, every other view occluded;
++		 * drm_pending_state_test() is a no-op on legacy, so all the checks
++		 * are in drm_output_prepare_scanout_view(). */
++		drm_debug(b, "\t[repaint] legacy: trying scanout-only state\n");
++		state = drm_output_propose_state(output_base, pending_state, mode);
++		if (!state)
++			drm_debug(b, "\t[repaint] legacy scanout not possible, "
++				     "renderer-only\n");
+ 	} else {
+ 		drm_debug(b, "\t[state] no overlay plane support\n");
+ 	}
+@@ -4191,6 +4208,15 @@
+ 	 */
+ 	if (!b->atomic_modeset || getenv("WESTON_FORCE_RENDERER"))
+ 		b->sprites_are_broken = 1;
++
++	/* PSC: kernel 4.4 lacks DRM_CAP_CRTC_IN_VBLANK_EVENT (4.12), so atomic is off
++	 * even though the MediaTek driver is atomic; allow fullscreen scanout anyway
++	 * when asked (WESTON_LEGACY_SCANOUT=1). */
++	b->legacy_scanout = !b->atomic_modeset &&
++			    !getenv("WESTON_FORCE_RENDERER") &&
++			    getenv("WESTON_LEGACY_SCANOUT") != NULL;
++	weston_log("DRM: legacy fullscreen scanout %s\n",
++		   b->legacy_scanout ? "enabled" : "disabled");
+ 
+ 	ret = drmSetClientCap(b->drm.fd, DRM_CLIENT_CAP_ASPECT_RATIO, 1);
+ 	b->aspect_ratio_supported = (ret == 0);

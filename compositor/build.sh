@@ -111,11 +111,15 @@ step weston-build ninja -C build
 step weston-install env DESTDIR="$STAGE" ninja -C build install
 
 # ---- package: the overlay holds only what the console needs at run time
+# libwayland-egl stays the console's: its Mesa 17 EGL reads the old unversioned
+# wl_egl_window layout (wl_surface at offset 0); 1.15+ puts a version field there
+rm -f "$STAGE"/usr/lib/libwayland-egl.so*
 rm -rf "$STAGE/usr/include" "$STAGE/usr/lib/pkgconfig" "$STAGE/usr/share/pkgconfig" "$STAGE/usr/share/wayland" \
        "$STAGE/usr/share/wayland-protocols" "$STAGE/usr/share/man" "$STAGE/usr/share/aclocal"
 find "$STAGE" -name '*.a' -delete
 find "$STAGE/usr/bin" "$STAGE/usr/lib" "$STAGE/usr/libexec" -type f -exec sh -c 'file "$1" | grep -q ELF && $STRIP "$1"' _ {} \; 2>/dev/null
 mkdir -p "$OUT"
+if ls "$STAGE"/usr/lib/libwayland-egl* >/dev/null 2>&1; then echo "libwayland-egl must not be packaged"; exit 1; fi
 tar czf "$OUT/psc-weston.tar.gz" -C "$STAGE/usr" .
 ( cd "$STAGE/usr" && find . -type f | sort ) > "$OUT/psc-weston.files"
 psc-check $(find "$STAGE/usr/bin" "$STAGE/usr/lib" "$STAGE/usr/libexec" -type f -name '*' | xargs file | grep ELF | cut -d: -f1) || true
