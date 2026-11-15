@@ -1,0 +1,17 @@
+CMake: NO_LIBATOMIC=ON links no libatomic
+
+The PSC has no libatomic.so.1 and the toolchain no libatomic at all. On ARMv7 GCC inlines
+the 64-bit atomics (ldrexd/strexd), so nothing needs it; the gate (psc-check) would catch
+an unresolved __atomic_* call.
+
+--- a/CMakeLists.txt	2026-11-14 22:03:58
++++ b/CMakeLists.txt	2026-11-14 22:17:07
+@@ -1729,7 +1729,7 @@
+ endif()
+ 
+ set(ATOMIC_LIB)
+-if(ANDROID OR (LINUX AND ARM_DEVICE) OR (LINUX AND RISCV64) OR (LINUX AND LOONGARCH64))
++if((ANDROID OR (LINUX AND ARM_DEVICE) OR (LINUX AND RISCV64) OR (LINUX AND LOONGARCH64)) AND NOT NO_LIBATOMIC)
+ 	set(ATOMIC_LIB atomic)
+ endif()
+ 

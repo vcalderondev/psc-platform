@@ -1,9 +1,13 @@
 # libretro cores built by cores/build.sh, one per line:
 #   name  repo(github)  commit  dir  makefile  extra make args (rest of the line)
 # Pinned upstream commits; `cores/build.sh <name>` or `cores/build.sh all`.
-# pcsx_rearmed has its own recipe (cores/pcsx_rearmed/build.sh: core options checks).
+# pcsx_rearmed has its own recipe (cores/pcsx_rearmed/build.sh: core options checks), and
+# so has ppsspp (cores/ppsspp/build.sh: CMake, git submodules, assets package).
+# mupen64plus_next: hardware rendered (GLideN64 on GLES 3, RetroArch's gl driver), no PSC
+# make target: the generic unix one with the 32-bit ARM dynarec (ARM mode) and NEON.
 fceumm           libretro/libretro-fceumm   e0f3086a8104f8fbbe49a2615b10401504a9533f  .        Makefile.libretro  platform=classic_armv8_a35
 snes9x           libretro/snes9x            fae2fea08f74180759ef540ee94259213f503480  libretro Makefile           platform=classic_armv8_a35
 genesis_plus_gx  libretro/Genesis-Plus-GX   b9c2316441978d4015ba30e9a95d9b0e6f8ee981  .        Makefile.libretro  platform=classic_armv8_a35
 gambatte         libretro/gambatte-libretro 77f2567d718b8973d02caa2daa8dce4953faf811  .        Makefile.libretro  platform=classic_armv8_a35
 gpsp             libretro/gpsp              5819380c2ffb0900219d700a382ee68c464ebb99  .        Makefile           platform=unix CPU_ARCH=arm HAVE_DYNAREC=1 TUNE=psc
+mupen64plus_next libretro/mupen64plus-libretro-nx 15bada85906593376e8fd697f1b0b3af3a20f512 . Makefile          platform=unix ARCH=arm WITH_DYNAREC=arm HAVE_NEON=1 FORCE_GLES3=1 STRINGS=arm-linux-gnueabihf-strings TUNE=psc-arm
