@@ -5,6 +5,9 @@
 # so has ppsspp (cores/ppsspp/build.sh: CMake, git submodules, assets package).
 # mupen64plus_next: hardware rendered (GLideN64 on GLES 3, RetroArch's gl driver), no PSC
 # make target: the generic unix one with the 32-bit ARM dynarec (ARM mode) and NEON.
+# cores/patches/mupen64plus_next: the core gives control back to RetroArch before the
+# game's first VI (a ROM that never programs the VI froze RetroArch for good).
+# Patches: cores/patches/<name>/*.patch are applied (-p1) to the pinned source.
 fceumm           libretro/libretro-fceumm   e0f3086a8104f8fbbe49a2615b10401504a9533f  .        Makefile.libretro  platform=classic_armv8_a35
 snes9x           libretro/snes9x            fae2fea08f74180759ef540ee94259213f503480  libretro Makefile           platform=classic_armv8_a35
 genesis_plus_gx  libretro/Genesis-Plus-GX   b9c2316441978d4015ba30e9a95d9b0e6f8ee981  .        Makefile.libretro  platform=classic_armv8_a35

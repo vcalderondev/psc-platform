@@ -3,6 +3,25 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- Mupen64Plus-Next (N64) froze RetroArch for good with a ROM that never programs the VI
+  (seen on the console with a truncated dump, 128 KB of an 8 MB game: IPL3's checksum
+  fails and the game spins). The core only returns from `retro_run` on a vertical
+  interrupt, and the VI event is only scheduled after the game's first `VI_V_SYNC` write,
+  so RetroArch's loop never ran again: no menu, no quit, no network commands, with any CPU
+  core (dynarec or interpreters). `cores/patches/mupen64plus_next/0001`: a fallback VI
+  event from power on that only hands control back, about a frame apart, until the game
+  sets its own VI timing. Reproduced and checked under ARMv7 emulation (the console's
+  binary, RetroArch 1.14, llvmpipe): the truncated ROM now leaves a black screen with
+  RetroArch responsive, and three homebrew test ROMs run as before. Not yet verified on
+  the console, and no commercial game has been run with it.
+
+### Added
+- `cores/build.sh`: `KEEP_SYMBOLS=1` also keeps `<name>_libretro.unstripped.so`, to
+  resolve the addresses of a crash report or a debugger session.
+
 ## [2.3.0] - 2026-11-14
 
 ### Added

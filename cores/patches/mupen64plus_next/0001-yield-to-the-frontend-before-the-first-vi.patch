@@ -1,0 +1,68 @@
+diff -ru a/mupen64plus-core/src/device/rcp/vi/vi_controller.c b/mupen64plus-core/src/device/rcp/vi/vi_controller.c
+--- a/mupen64plus-core/src/device/rcp/vi/vi_controller.c	2026-10-22 17:50:42
++++ b/mupen64plus-core/src/device/rcp/vi/vi_controller.c	2026-11-15 09:54:06
+@@ -30,6 +30,7 @@
+ #include "main/main.h"
+ #include "plugin/plugin.h"
+ #include <mupen64plus-next_common.h>
++#include <libretro_private.h>
+ 
+ unsigned int vi_clock_from_tv_standard(m64p_system_type tv_standard)
+ {
+@@ -58,6 +59,16 @@
+     }
+ }
+ 
++/* PSC: the libretro frontend only gets control back on a vertical interrupt (new_vi ->
++ * retro_return), and the VI event is only scheduled once the game has programmed
++ * VI_V_SYNC. A ROM that never gets there (a truncated or corrupt dump that fails IPL3's
++ * checksum and spins) keeps retro_run from ever returning: RetroArch freezes, its menu,
++ * quit and network commands included. So a fallback VI event is queued at power on:
++ * until the game's first VI_V_SYNC write (vi->delay == 0) it only hands control back,
++ * about a frame apart (no screen update, no VI interrupt), and that first write
++ * replaces it with the game's own timing. */
++#define VI_FALLBACK_DELAY 800000
++
+ void set_vi_vertical_interrupt(struct vi_controller* vi)
+ {
+     if (!get_event(&vi->mi->r4300->cp0.q, VI_INT) && (vi->regs[VI_V_INTR_REG] < vi->regs[VI_V_SYNC_REG]))
+@@ -87,6 +98,8 @@
+         vi->delay = 5000;
+         vi->count_per_scanline = CountPerScanlineOverride;
+     }
++    /* the event queue was just initialized (poweron_r4300), Count is 0 */
++    add_interrupt_event_count(&vi->mi->r4300->cp0, VI_INT, VI_FALLBACK_DELAY);
+ }
+ 
+ void read_vi_regs(void* opaque, uint32_t address, uint32_t* value)
+@@ -147,7 +160,12 @@
+     case VI_V_SYNC_REG:
+         if ((vi->regs[VI_V_SYNC_REG] & mask) != (value & mask))
+         {
++            int fallback = (vi->delay == 0);
+             masked_write(&vi->regs[VI_V_SYNC_REG], value, mask);
++            /* the fallback event gives way to the game's own timing (when the write
++             * starts it: see set_vi_vertical_interrupt) */
++            if (fallback && vi->regs[VI_V_INTR_REG] < vi->regs[VI_V_SYNC_REG])
++                remove_event(&vi->mi->r4300->cp0.q, VI_INT);
+             if(!CountPerScanlineOverride) {
+                 vi->count_per_scanline = (vi->clock / vi->expected_refresh_rate) / (vi->regs[VI_V_SYNC_REG] + 1);
+             } else {
+@@ -173,6 +191,17 @@
+ void vi_vertical_interrupt_event(void* opaque)
+ {
+     struct vi_controller* vi = (struct vi_controller*)opaque;
++
++    if (vi->delay == 0)
++    {
++        /* fallback event: the game has not programmed the VI yet, only yield */
++        uint32_t next = *get_event(&vi->mi->r4300->cp0.q, VI_INT) + VI_FALLBACK_DELAY;
++        remove_interrupt_event(&vi->mi->r4300->cp0);
++        add_interrupt_event_count(&vi->mi->r4300->cp0, VI_INT, next);
++        retro_return();
++        return;
++    }
++
+     if (vi->dp->do_on_unfreeze & DELAY_DP_INT)
+         vi->dp->do_on_unfreeze |= DELAY_UPDATESCREEN;
+     else
