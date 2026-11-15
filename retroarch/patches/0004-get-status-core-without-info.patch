@@ -1,0 +1,52 @@
+GET_STATUS: no crash for a core without an .info file
+
+core_info_list_new() makes one entry per core library in libretro_directory, with or
+without a matching .info file; without one, core_info->system_id stays NULL.
+command_get_status() only checked core_info and passed that NULL to strlcpy(): SIGSEGV
+at address 0 on the first GET_STATUS after a game started. Lumen sets libretro_directory
+and ships no .info files, and lumen-buttons' watchdog asks GET_STATUS every 2 s, so every
+game died a few seconds into its start (retroarch exit=139).
+
+The system id falls back to the core's library_name, as it already did when there was no
+core_info entry at all; a NULL library_name or content path gives an empty field.
+
+--- a/command.c
++++ b/command.c
+@@ -1042,8 +1042,19 @@
+       /* add some content info */
+       core_info_t *core_info      = NULL;
+       runloop_state_t *runloop_st = runloop_state_get_ptr();
++      const char *system_id       = NULL;
++      const char *content         = path_get(RARCH_PATH_BASENAME);
+ 
+       core_info_get_current_core(&core_info);
++      /* A core without an .info file still has a core_info entry (one per
++       * library in libretro_directory), with system_id == NULL */
++      if (core_info)
++         system_id                = core_info->system_id;
++      if (!system_id)
++         system_id                = runloop_st->system.info.library_name;
++      if (!system_id)
++         system_id                = "";
++      content                     = content ? path_basename(content) : "";
+ 
+       _len     = strlcpy(reply, "GET_STATUS ", sizeof(reply));
+       if (runloop_st->flags & RUNLOOP_FLAG_PAUSED)
+@@ -1051,15 +1062,9 @@
+       else
+          _len += strlcpy(reply + _len, "PLAYING", sizeof(reply) - _len);
+       _len    += strlcpy(reply + _len, " ", sizeof(reply) - _len);
+-      if (core_info)
+-         _len += strlcpy(reply + _len, core_info->system_id,
+-               sizeof(reply) - _len);
+-      else
+-         _len += strlcpy(reply + _len, runloop_st->system.info.library_name,
+-               sizeof(reply) - _len);
++      _len    += strlcpy(reply + _len, system_id, sizeof(reply) - _len);
+       _len    += strlcpy(reply + _len, ",", sizeof(reply) - _len);
+-      _len    += strlcpy(reply + _len,
+-            path_basename(path_get(RARCH_PATH_BASENAME)), sizeof(reply) - _len);
++      _len    += strlcpy(reply + _len, content, sizeof(reply) - _len);
+       _len    += snprintf(reply + _len, sizeof(reply) - _len,
+             ",crc32=%lx\n", (unsigned long)content_get_crc());
+    }

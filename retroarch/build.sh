@@ -8,6 +8,7 @@
 #   psc-retroarch.tar.gz   bin/retroarch + share/retroarch/autoconfig/udev (joypad profiles)
 #   psc-check.txt          the gate: every binary loads on the console WITH the compositor
 #                          overlay applied (libwayland-client 1.26 comes from that overlay)
+#   get-status.txt         the GET_STATUS test (test/get-status.sh) on the built binary
 #   configure.log, build-info.txt
 #
 # Video: Wayland context (xdg-shell, the only protocol it needs besides wl_compositor /
@@ -188,5 +189,12 @@ echo "### bare console (Sony Weston 1.11 / libwayland 1.12): expected to fail" >
 psc-check --device-root /device "$STAGE/bin/retroarch" >> "$OUT/psc-check.txt" 2>&1 || true
 [ $gate = 0 ] || { cat "$OUT/psc-check.txt"; exit 1; }
 echo "psc-check: retroarch loads on the console with $n compositor package(s)"
+
+# ---- behaviour: a running game answers GET_STATUS, also for a core without an .info file
+# (test/get-status.sh; lumen-buttons' watchdog depends on that answer). Needs ARM emulation
+# on the build machine: without it the test reports SKIPPED and the build goes on.
+set +e; sh "$HERE/test/get-status.sh" "$STAGE/bin/retroarch" "$REPO/out/compositor/psc-weston-16.tar.gz" > "$OUT/get-status.txt" 2>&1; rc=$?; set -e
+cat "$OUT/get-status.txt"
+[ $rc = 0 ] || [ $rc = 77 ] || { echo "GET_STATUS test FAILED"; exit 1; }
 cat "$OUT/build-info.txt"
 ls -la "$OUT/psc-retroarch.tar.gz"

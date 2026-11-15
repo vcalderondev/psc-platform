@@ -33,6 +33,10 @@ jobs:
           sysroot-token: ${{ secrets.PSC_SYSROOT_TOKEN }}
       - name: Wayland 1.26 + Weston 16.0.2
         run: $PSC_TOOLCHAIN/psc sh psc-platform/compositor/build.sh
+      # retroarch/test/get-status.sh runs the built ARM binary (qemu-user through binfmt)
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm
       - name: RetroArch 1.22
         run: $PSC_TOOLCHAIN/psc sh psc-platform/retroarch/build.sh
       - name: Debug helpers (psc-crash.so)
@@ -68,6 +72,7 @@ jobs:
              $O/cores/ppsspp-assets.tar.gz "$D/"
           for f in $O/compositor/psc-check*.txt; do cp "$f" "$D/compositor-$(basename "$f")"; done
           cp $O/retroarch/psc-check.txt "$D/retroarch-psc-check.txt"
+          cp $O/retroarch/get-status.txt "$D/retroarch-get-status.txt"
           cp $O/cores/psc-check.txt "$D/cores-psc-check.txt"
           cat $O/cores/*.psc-check.txt >> "$D/cores-psc-check.txt"
           cp $O/debug/psc-crash.so "$D/"

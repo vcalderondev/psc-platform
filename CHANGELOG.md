@@ -3,6 +3,29 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [2.4.1] - 2026-11-15
+
+### Fixed
+- RetroArch crashed a few seconds into every game (`retroarch exit=139`, any core) with
+  Lumen 0.12.0: a segfault at address 0 in `command_get_status`, on the first `GET_STATUS`
+  network command after the content was up. Lumen's `retroarch.cfg` sets
+  `libretro_directory`, RetroArch makes a core info entry for every core library in that
+  folder, and without a matching `.info` file (Lumen ships none) the entry's `system_id` is
+  NULL; `GET_STATUS` printed it unchecked. `lumen-buttons`' watchdog asks `GET_STATUS`
+  every 2 s. `retroarch/patches/0004`: the system id falls back to the core's own name
+  (`GET_STATUS PLAYING PCSX-ReARMed,<content>,crc32=...`), as it already did without a
+  core info entry, and no field of the answer can be NULL. No `.info` files are added: the
+  answer must not depend on them, since a core dropped into `cores/` has none either.
+
+### Added
+- `retroarch/test/get-status.sh`, run by `retroarch/build.sh` on the binary it just built
+  (`out/retroarch/get-status.txt`, also in the release): it starts a game with the console
+  binary under ARM emulation (the console's own loader and libraries, null video / audio
+  drivers, a 60-line test core, `libretro_directory` as Lumen sets it) and asks
+  `GET_STATUS`, without and with an `.info` file. The 2.4.0 binary fails it (exit 139 on
+  the question); a failure stops the build. Without ARM emulation on the build machine it
+  reports SKIPPED; the release workflow installs qemu-user for it.
+
 ## [2.4.0] - 2026-11-15
 
 ### Added
