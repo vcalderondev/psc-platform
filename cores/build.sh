@@ -46,6 +46,9 @@ build_one() {  # name repo commit dir makefile args...
   so=$(ls "$B/$dir"/*_libretro.so 2>/dev/null | head -1)
   [ -n "$so" ] || { echo "no *_libretro.so in $B/$dir"; return 1; }
   cp "$so" "$OUT/${name}_libretro.so"
+  # KEEP_SYMBOLS=1: the unstripped core next to it (<name>_libretro.unstripped.so), to
+  # resolve the addresses of a crash report (tools/debug) or of a debugger; never shipped
+  [ -z "$KEEP_SYMBOLS" ] || cp "$so" "$OUT/${name}_libretro.unstripped.so"
   $STRIP "$OUT/${name}_libretro.so"
   { echo "$repo $commit $mk $*"; arm-linux-gnueabihf-readelf -d "$OUT/${name}_libretro.so" | grep NEEDED; } > "$OUT/$name.build-info.txt"
   psc-check "$OUT/${name}_libretro.so" > "$OUT/$name.psc-check.txt" 2>&1 || { cat "$OUT/$name.psc-check.txt"; echo "FAILED gate: $name"; return 1; }
