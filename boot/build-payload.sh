@@ -66,7 +66,8 @@ if [ "$MODE" != sign ]; then
   EPOCH="$(git -C "$REPO" log -1 --format=%ct 2>/dev/null || date +%s)"
 
   echo "== 1. lumen-splash"
-  "$REPO/toolchain/psc" sh psc-platform/boot/splash/build.sh
+  # this checkout's own folder under the workspace (a worktree is not named psc-platform)
+  PSC_WORKSPACE="$WS" "$REPO/toolchain/psc" sh "$(basename "$REPO")/boot/splash/build.sh"
 
   echo "== 2. stage"
   rm -rf "$STAGE"; mkdir -p "$STAGE/payload/bin" "$STAGE/payload/assets"
