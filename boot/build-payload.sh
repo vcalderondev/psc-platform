@@ -5,7 +5,8 @@
 #
 # Steps:
 #   1. lumen-splash for the console (toolchain container, boot/splash/build.sh)
-#   2. stage payload/ = start, VERSION, bin/lumen-splash, assets/splash.png, and
+#   2. stage payload/ = start, splash.sh, VERSION, bin/lumen-splash, assets/splash[-1080].png,
+#      assets/boot/loading-<lang>[-1080].png (the splash's "Loading" text), and
 #      modules/{overlay,xpad}.ko when kernel/build-modules.sh built and checked them
 #   3. tar.gz it (GNU tar, reproducible: sorted, uid/gid 0, fixed mtime, gzip -n)
 #   4. sign with the console's siescph1000 key, encrypt to siecs2 + symmetric with the
@@ -65,14 +66,24 @@ if [ "$MODE" != sign ]; then
   EPOCH="$(git -C "$REPO" log -1 --format=%ct 2>/dev/null || date +%s)"
 
   echo "== 1. lumen-splash"
-  "$REPO/toolchain/psc" sh psc-platform/boot/splash/build.sh
+  # this checkout's own folder under the workspace (a worktree is not named psc-platform)
+  PSC_WORKSPACE="$WS" "$REPO/toolchain/psc" sh "$(basename "$REPO")/boot/splash/build.sh"
 
   echo "== 2. stage"
   rm -rf "$STAGE"; mkdir -p "$STAGE/payload/bin" "$STAGE/payload/assets"
-  cp "$HERE/payload/start" "$STAGE/payload/start"
+  cp "$HERE/payload/start" "$HERE/payload/splash.sh" "$STAGE/payload/"
   cp "$OUT/lumen-splash" "$STAGE/payload/bin/lumen-splash"
   [ -f "$SPLASH_PNG" ] && cp "$SPLASH_PNG" "$STAGE/payload/assets/splash.png" ||
     echo "   (no $SPLASH_PNG: the payload only uses <stick>/lumen/assets/splash.png)"
+  # the 1080p splash and the "Loading" text pictures live next to it in Lumen's assets
+  SPLASH_DIR="$(dirname "$SPLASH_PNG")"
+  [ -f "$SPLASH_DIR/splash-1080.png" ] && cp "$SPLASH_DIR/splash-1080.png" "$STAGE/payload/assets/"
+  if ls "$SPLASH_DIR/boot/"loading-*.png >/dev/null 2>&1; then
+    mkdir -p "$STAGE/payload/assets/boot"; cp "$SPLASH_DIR/boot/"loading-*.png "$STAGE/payload/assets/boot/"
+    echo "   loading text: $(ls "$STAGE/payload/assets/boot" | wc -l | tr -d ' ') pictures"
+  else
+    echo "   (no $SPLASH_DIR/boot/loading-*.png: the payload only uses the stick's)"
+  fi
   # kernel modules for the stock kernel (psc-platform/kernel/build-modules.sh), if built
   if ls "$REPO/out/kernel/modules/"*.ko >/dev/null 2>&1 && grep -q "^ALL OK" "$REPO/out/kernel/modules/check.txt" 2>/dev/null; then
     mkdir -p "$STAGE/payload/modules"; cp "$REPO/out/kernel/modules/"*.ko "$STAGE/payload/modules/"
@@ -81,9 +92,10 @@ if [ "$MODE" != sign ]; then
     echo "   (no checked modules in out/kernel/modules: payload without overlay.ko/xpad.ko)"
   fi
   printf 'lumen-payload %s %s\n' "$VER" "$(date -u -d "@$EPOCH" +%Y-%m-%dT%H:%MZ 2>/dev/null || date -u -r "$EPOCH" +%Y-%m-%dT%H:%MZ)" > "$STAGE/payload/VERSION"
-  chmod 755 "$STAGE/payload/start" "$STAGE/payload/bin/lumen-splash"
-  chmod 644 "$STAGE/payload/VERSION" "$STAGE/payload/assets/"* 2>/dev/null || true
+  chmod 755 "$STAGE/payload/start" "$STAGE/payload/splash.sh" "$STAGE/payload/bin/lumen-splash"
+  chmod 644 "$STAGE/payload/VERSION" "$STAGE/payload/assets/"*.png "$STAGE/payload/assets/boot/"*.png 2>/dev/null || true
   sh -n "$STAGE/payload/start" || die "start: shell syntax error"
+  sh -n "$STAGE/payload/splash.sh" || die "splash.sh: shell syntax error"
 
 echo "== 3. pack"
 rm -f "$OUT/payload.tar.gz"

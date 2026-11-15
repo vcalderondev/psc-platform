@@ -15,7 +15,8 @@ sh psc-platform/boot/verify-payload.sh <LDIAG.BIN>
 | File | What |
 |---|---|
 | `payload/start` | the payload's entry point (runs as root from `/tmp/diag/<id>/payload/`) |
-| `splash/lumen-splash.c`, `splash/build.sh` | splash viewer: console SDL 2.0.4 + SDL2_image (dlopen), Wayland, until SIGTERM |
+| `payload/splash.sh` | starts the splash: picks the pictures (720p / 1080p) and the "Loading" text of the language in `<stick>/lumen/settings.ini` (English if it has none). `start` runs it when Sony's animation ends and leaves `/tmp/lumen-splash.sh` so Lumen's `boot.sh` can show it again after swapping the compositor |
+| `splash/lumen-splash.c`, `splash/build.sh` | splash viewer: console SDL 2.0.4 + SDL2_image (dlopen), Wayland, until SIGTERM. A full-screen picture plus `--text <png>` at the bottom right with three animated dots, laid out like Lumen's own splash |
 | `build-payload.sh` | builds the splash, stages `payload/`, tar.gz, signs + encrypts, verifies |
 | `verify-payload.sh` | runs usb_watch's own checks with the console's gpg 1.4.7/busybox/bash under ARMv7 emulation, plus a tamper test |
 | `test/run-start-tests.sh` | patched/virgin console, exFAT/FAT32/ext4, no Lumen, mount failure, ... |
