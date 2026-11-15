@@ -108,7 +108,10 @@ killall -s KILL showLogo 2>/dev/null
 # "Loading" (splash.sh). boot.sh keeps it up until it has to swap the compositor, and
 # shows it again on the new one through /tmp/lumen-splash.sh until Lumen draws.
 export XDG_RUNTIME_DIR=/run/user/0 HOME=/home/root
-/usr/bin/wait_sdl >/dev/null 2>&1       # it waits for the Wayland socket
+# Only the Wayland socket is needed, and it is there (showLogo was a client of it): no
+# /usr/bin/wait_sdl here, which also opens the audio device and took ~0.7 s of black
+# screen. boot.sh runs it itself before the frontend.
+i=0; while [ ! -S "${XDG_RUNTIME_DIR}/wayland-0" ] && [ $i -lt 30 ]; do sleep 0.1; i=$((i + 1)); done
 if [ -x "${PAYLOAD}/bin/lumen-splash" ] && [ -f "${PAYLOAD}/splash.sh" ]; then
   printf '#!/bin/sh\nexec sh "%s/splash.sh" "$@"\n' "${PAYLOAD}" > /tmp/lumen-splash.sh
   sh /tmp/lumen-splash.sh >> "${RAMLOG}" 2>&1 &
@@ -144,7 +147,9 @@ else
 fi
 
 log "running /media/lumen/boot.sh ($(cut -d' ' -f1 /proc/uptime)s since power-on)"
-sync
+# every log line above was written with open-append-close; the flush to the stick goes
+# on behind boot.sh instead of holding it (it took most of 1.4 s on a FAT32 stick)
+sync &
 cd /home/root
 sh /media/lumen/boot.sh
 rc=$?
