@@ -3,7 +3,7 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [2.3.0] - 2026-11-14
 
 ### Added
 - Hardware-rendered cores: they draw with GLES 3 on the PowerVR GE8300 through RetroArch's
