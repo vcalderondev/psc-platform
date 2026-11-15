@@ -3,6 +3,24 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [2.3.0] - 2026-11-14
+
+### Added
+- Hardware-rendered cores: they draw with GLES 3 on the PowerVR GE8300 through RetroArch's
+  `gl` driver (libretro hardware context), linking the console's own libEGL / libGLESv2.
+  - Mupen64Plus-Next (N64) in `cores/cores.list`: GLideN64, HLE RSP, the 32-bit ARM
+    dynarec, Cortex-A35 / NEON in ARM mode (`TUNE=psc-arm`, new in `cores/build.sh`).
+    Chosen over Flycast (Dreamcast) for this CPU: see README, "Hardware-rendered cores".
+  - PPSSPP (PSP), its own recipe `cores/ppsspp/build.sh`: v1.20.4 from a shallow git
+    checkout with the submodules it needs (cached as one tarball), CMake `LIBRETRO=ON`,
+    GLES, ARMv7 JIT, no Vulkan, bundled FFmpeg. Release asset `ppsspp-assets.tar.gz`
+    holds `PPSSPP/` for RetroArch's system folder (the core reads its fonts and data there).
+    Links no libatomic (`patches/0001`; the console has none) and carries a hidden
+    `fcntl64` shim (`psc-compat.c`) for upstream's prebuilt FFmpeg, built on glibc 2.28.
+  - Both pass the `psc-check` gate (mupen64plus_next 4.3 MB, ppsspp 18 MB + 11 MB of
+    assets); not yet verified on the console.
+- `versions.txt`: `mupen64plus_next`, `ppsspp`.
+
 ## [2.2.1] - 2026-11-14
 
 ### Fixed
