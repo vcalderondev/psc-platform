@@ -8,7 +8,8 @@
 #
 # Output: out/cores/<name>_libretro.so, out/cores/<name>.build-info.txt, and the gate
 # out/cores/<name>.psc-check.txt: every core must load on the bare console (cores need
-# nothing from the compositor).
+# nothing from the compositor; hardware-rendered ones link the console's own libEGL /
+# libGLESv2 and get their GLES context from RetroArch).
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
@@ -30,10 +31,12 @@ build_one() {  # name repo commit dir makefile args...
   # the core's Makefile sets its own CFLAGS/LDFLAGS for the target: keep psc-env's out
   # C++ cores: libstdc++ / libgcc linked in statically (the console's libstdc++ is GCC
   # 6's, ours GCC 12's: GLIBCXX_3.4.29 would not resolve). TUNE=psc in the list adds the
-  # Cortex-A35 / NEON flags to the compilers, for cores without a PSC make target.
+  # Cortex-A35 / NEON flags to the compilers, for cores without a PSC make target
+# (TUNE=psc-arm: the same in ARM mode, for dynarecs whose assembly is not Thumb-2).
   cc="arm-linux-gnueabihf-gcc"; cxx="arm-linux-gnueabihf-g++ -static-libstdc++ -static-libgcc"
   rest=""; for a in "$@"; do case "$a" in
     TUNE=psc) t="-mcpu=cortex-a35 -mfpu=neon-fp-armv8 -mfloat-abi=hard"; cc="$cc $t"; cxx="$cxx $t" ;;
+    TUNE=psc-arm) t="-mcpu=cortex-a35 -mfpu=neon-fp-armv8 -mfloat-abi=hard -marm"; cc="$cc $t"; cxx="$cxx $t" ;;
     *) rest="$rest $a" ;; esac; done
   if ! (cd "$B/$dir" && env -u CFLAGS -u CXXFLAGS -u LDFLAGS make -f "$mk" $rest \
         CC="$cc" CXX="$cxx" AR=arm-linux-gnueabihf-ar \
