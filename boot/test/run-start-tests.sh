@@ -17,6 +17,10 @@
 #   mount-fails      the stick cannot be mounted (twice)             -> Sony menu, parked
 #   no-stick         blkid finds no SONY* stick                      -> Sony menu, parked
 #   boot-sh-returns  boot.sh exits 1                                 -> reboot, never returns
+# Splash (every scenario that starts Lumen): it is started before boot.sh with the text
+# picture of the language in <stick>/lumen/settings.ini (virgin-ext4: fr; the others have
+# no settings.ini: es, Lumen's default) and the English one as fallback, and
+# /tmp/lumen-splash.sh starts it again with the 1080p pictures for boot.sh.
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BOOT="$(dirname "$HERE")"
@@ -36,7 +40,7 @@ setup() {  # scenario
   mkdir -p /sbin /stubs /media /data/power /etc/versions /tmp/diag/d8781dae/payload/bin /tmp/diag/d8781dae/payload/assets
   cp -r /payload-src/. /tmp/diag/d8781dae/payload/
   echo test > /tmp/diag/d8781dae/payload/VERSION
-  printf "#!/bin/sh\nexit 0\n" > /tmp/diag/d8781dae/payload/bin/lumen-splash; chmod +x /tmp/diag/d8781dae/payload/bin/lumen-splash
+  printf "#!/bin/sh\necho \"lumen-splash \$*\" >> /calls\n" > /tmp/diag/d8781dae/payload/bin/lumen-splash; chmod +x /tmp/diag/d8781dae/payload/bin/lumen-splash
   : > /calls; echo 0 > /data/power/disable
   echo MREL > /etc/versions/target
   case "$1" in patched*) echo dev > /etc/versions/variant; echo 47 > /etc/versions/pe_kernel.ver
@@ -70,6 +74,7 @@ setup() {  # scenario
     printf "echo \"boot.sh ran cwd=\$(pwd) XDG=\$XDG_RUNTIME_DIR disable=\$(cat /data/power/disable)\" >> /calls\nexit $rc\n" > /media/lumen/boot.sh;;
   esac
   [ "$1" = disabled ] && : > /media/lumen/disable-boot
+  [ "$1" = virgin-ext4 ] && printf "version=1\r\nlanguage=fr\r\nprofile=main\r\n" > /media/lumen/settings.ini
   return 0
 }
 run() {  # scenario expected(lumen|stock)
@@ -85,6 +90,15 @@ run() {  # scenario expected(lumen|stock)
     grep -q "killall -s KILL ui_menu" /calls || { ok=0; why="$why ui_menu not stopped;"; }
     grep -q "^mount -o rw /dev/sda1 /media" /calls || { ok=0; why="$why stick not mounted rw;"; }
     [ "$(sed -n 1p /calls)" = "killall -STOP sonyapp" ] || { ok=0; why="$why first action is not the freeze;"; }
+    lang=es; [ "$1" = virgin-ext4 ] && lang=fr
+    sleep 0.3   # the splash runs in the background
+    grep -q "^lumen-splash --text /media/lumen/assets/boot/loading-$lang.png .*loading-en.png .*/media/lumen/assets/splash.png" /calls ||
+      { ok=0; why="$why splash not started with the $lang text;"; }
+    [ "$(grep -n "^lumen-splash" /calls | head -1 | cut -d: -f1)" -lt "$(grep -n "^boot.sh ran" /calls | cut -d: -f1)" ] 2>/dev/null ||
+      { ok=0; why="$why splash not started before boot.sh;"; }
+    n=$(grep -c "^lumen-splash" /calls); sh /tmp/lumen-splash.sh 1080p; sleep 0.2
+    [ "$(grep -c "^lumen-splash" /calls)" = $((n + 1)) ] && tail -1 /calls | grep -q "loading-$lang-1080.png .*/media/lumen/assets/splash-1080.png" ||
+      { ok=0; why="$why /tmp/lumen-splash.sh 1080p does not start the 1080p splash;"; }
     case "$1" in
       patched*) grep -q "^insmod" /calls && { ok=0; why="$why module loaded into a non-stock kernel;"; } ;;
       *) grep -q "^insmod .*/modules/overlay.ko" /calls && grep -q "^insmod .*/modules/xpad.ko" /calls ||
@@ -99,6 +113,7 @@ run() {  # scenario expected(lumen|stock)
     grep -q "^PARKED" /calls || { ok=0; why="$why returned to usb_watch instead of parking;"; }
     grep -q "^reboot" /calls && { ok=0; why="$why rebooted;"; }
     grep -q "^insmod" /calls && { ok=0; why="$why module loaded on the Sony-menu path;"; }
+    grep -q "^lumen-splash" /calls && { ok=0; why="$why splash shown on the Sony-menu path;"; }
     [ "$(cat /data/power/disable)" = 0 ] || { ok=0; why="$why power flag changed;"; }
   fi
   if [ $ok = 1 ]; then echo "PASS $1 -> $2"; else echo "FAIL $1 -> $2:$why"; fail=1; fi

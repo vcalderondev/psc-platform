@@ -13,8 +13,9 @@
 #      console's /sbin/mount.exfat FUSE helper when present)
 #   3. no Lumen on the stick (or <stick>/lumen/disable-boot exists): give the console back
 #      to Sony's menu and park here (returning would make usb_watch run us again ~60 s later)
-#   4. otherwise let Sony's boot animation finish, stop Sony's UI for good, show Lumen's splash, run /media/lumen/boot.sh,
-#      and reboot when it returns (boot.sh's own contract)
+#   4. otherwise let Sony's boot animation finish, show Lumen's splash (logo + "Loading",
+#      splash.sh), stop Sony's UI for good, run /media/lumen/boot.sh, and reboot when it
+#      returns (boot.sh's own contract)
 #
 # HARD RULES: no eMMC writes. Nothing here remounts / or /gaadata rw, touches a
 # partition, installs a file outside RAM, or edits a Sony/Eris config. The only writes
@@ -101,6 +102,19 @@ i=0
 while showlogo_running && [ $i -lt 150 ]; do sleep 0.1; i=$((i + 1)); done
 log "showLogo: $(showlogo_running && echo "still running after 15 s, killed" || echo "done") (waited $((i / 10)).$((i % 10)) s)"
 killall -s KILL showLogo 2>/dev/null
+
+# Splash, the moment Sony's animation is gone (Sony's Weston 1.11 is up: showLogo was
+# drawing on it), so the screen is not left black while the rest happens: the logo and
+# "Loading" (splash.sh). boot.sh keeps it up until it has to swap the compositor, and
+# shows it again on the new one through /tmp/lumen-splash.sh until Lumen draws.
+export XDG_RUNTIME_DIR=/run/user/0 HOME=/home/root
+/usr/bin/wait_sdl >/dev/null 2>&1       # it waits for the Wayland socket
+if [ -x "${PAYLOAD}/bin/lumen-splash" ] && [ -f "${PAYLOAD}/splash.sh" ]; then
+  printf '#!/bin/sh\nexec sh "%s/splash.sh" "$@"\n' "${PAYLOAD}" > /tmp/lumen-splash.sh
+  sh /tmp/lumen-splash.sh >> "${RAMLOG}" 2>&1 &
+  log "splash: pid $! language=$(sed -n 's/^language=//p' /media/lumen/settings.ini 2>/dev/null | tr -d '\r' | tail -1)"
+fi
+
 killall -TERM sonyapp 2>/dev/null
 killall -CONT sonyapp 2>/dev/null
 i=0; while pidof sonyapp >/dev/null 2>&1 && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
@@ -108,7 +122,6 @@ killall -s KILL sonyapp 2>/dev/null
 killall -s KILL ui_menu 2>/dev/null
 # the internal games stay read-only (they already are: fstab mounts /gaadata ro)
 mount -o remount,ro /gaadata 2>/dev/null
-export XDG_RUNTIME_DIR=/run/user/0 HOME=/home/root
 
 # Kernel features Sony's stock kernel lacks, loaded from RAM (psc-platform/kernel:
 # built from Sony's source + defconfig, vermagic "4.4.22 SMP preempt ARMv7 p2v8").
@@ -128,20 +141,6 @@ if [ "$(uname -r)" = 4.4.22 ] && [ "$(uname -v)" = "${STOCK_BUILD}" ] && [ ! -e 
   fi
 else
   log "modules: not loaded (kernel $(uname -r) '$(uname -v)' is not the stock build, or no-modules)"
-fi
-
-/usr/bin/wait_sdl >/dev/null 2>&1       # Sony's Weston is up (it waits for the socket)
-
-# Splash on Sony's Weston 1.11 until boot.sh swaps the compositor. boot.sh already kills
-# processes named "sdl_display" (Eris' viewer had that name), so ours runs under it.
-splash_img=""
-for f in /media/lumen/assets/splash.png "${PAYLOAD}/assets/splash.png"; do
-  [ -f "$f" ] && { splash_img="$f"; break; }
-done
-if [ -n "${splash_img}" ] && [ -x "${PAYLOAD}/bin/lumen-splash" ]; then
-  ln -sf "${PAYLOAD}/bin/lumen-splash" /tmp/sdl_display
-  /tmp/sdl_display "${splash_img}" "${PAYLOAD}/assets/splash.png" >> "${RAMLOG}" 2>&1 &
-  log "splash: ${splash_img} (pid $!)"
 fi
 
 log "running /media/lumen/boot.sh ($(cut -d' ' -f1 /proc/uptime)s since power-on)"

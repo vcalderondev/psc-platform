@@ -3,6 +3,16 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Boot payload: the splash shows "Loading" with three animated dots at the bottom right,
+  in the language Lumen is set to (`<stick>/lumen/settings.ini`, English as fallback; the
+  text is a picture per language from Lumen's `assets/boot/`, also packed in the payload).
+  It starts the moment Sony's boot animation ends, before the rest of the teardown, and
+  `/tmp/lumen-splash.sh` lets Lumen's `boot.sh` show it again on the new compositor
+  (`payload/splash.sh`, `lumen-splash --text`).
+
 ## [2.3.0] - 2026-11-14
 
 ### Added
