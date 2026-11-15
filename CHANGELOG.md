@@ -3,7 +3,7 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [2.3.1] - 2026-11-15
 
 ### Fixed
 - Mupen64Plus-Next (N64) froze RetroArch for good with a ROM that never programs the VI
@@ -15,8 +15,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](http
   event from power on that only hands control back, about a frame apart, until the game
   sets its own VI timing. Reproduced and checked under ARMv7 emulation (the console's
   binary, RetroArch 1.14, llvmpipe): the truncated ROM now leaves a black screen with
-  RetroArch responsive, and three homebrew test ROMs run as before. Not yet verified on
-  the console, and no commercial game has been run with it.
+  RetroArch responsive, and three homebrew test ROMs run as before. Verified on the
+  console with the patched core: Super Mario 64 starts, plays and exits cleanly.
 
 ### Added
 - `cores/build.sh`: `KEEP_SYMBOLS=1` also keeps `<name>_libretro.unstripped.so`, to
