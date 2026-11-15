@@ -16,6 +16,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](http
   (`GET_STATUS PLAYING PCSX-ReARMed,<content>,crc32=...`), as it already did without a
   core info entry, and no field of the answer can be NULL. No `.info` files are added: the
   answer must not depend on them, since a core dropped into `cores/` has none either.
+  Verified on the console: games start, play and exit again.
 
 ### Added
 - `retroarch/test/get-status.sh`, run by `retroarch/build.sh` on the binary it just built
