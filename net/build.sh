@@ -10,7 +10,7 @@
 #
 # Layout under /usr:
 #   lib/libssl.so.4 libcrypto.so.4 libnl-3.so.200 libnl-genl-3.so.200 libcurl.so.4 libz.so.1
-#   sbin/wpa_supplicant wpa_cli iw          bin/curl
+#   sbin/wpa_supplicant wpa_cli wpa_passphrase iw          bin/curl
 #   lib/psc-net/busybox  (ntpd)             lib/psc-net/ssl/cert.pem (CA bundle)
 #   lib/firmware/...     (firmware_class.path points here when the network starts)
 # The console's own OpenSSL 1.0.0 stays (other sonames); its libz.so.1 is replaced by a
@@ -120,7 +120,8 @@ CFG
 step wpa-build make -j4 CC=$H-gcc \
    EXTRA_CFLAGS="$PSC_FLAGS -O2 -I$SYSROOT/usr/include -I$SYSROOT/usr/include/libnl3" \
    LDFLAGS="-L$SYSROOT/usr/lib" PKG_CONFIG="pkg-config" BINDIR=/usr/sbin
-mkdir -p "$STAGE/usr/sbin"; cp wpa_supplicant wpa_cli "$STAGE/usr/sbin/"
+step wpa-passphrase make wpa_passphrase CC=$H-gcc EXTRA_CFLAGS="$PSC_FLAGS -O2 -I$SYSROOT/usr/include -I$SYSROOT/usr/include/libnl3" LDFLAGS="-L$SYSROOT/usr/lib"
+mkdir -p "$STAGE/usr/sbin"; cp wpa_supplicant wpa_cli wpa_passphrase "$STAGE/usr/sbin/"   # wpa_passphrase: the stick keeps a PSK hash, not the password
 
 # ---- iw
 unpack iw-$IW.tar.xz iw; cd "$B/iw"
@@ -174,7 +175,7 @@ psc-check --device-root "$COMBO" $ELFS > "$OUT/psc-check.txt" 2>&1 || { cat "$OU
 echo "psc-check: $(grep -c '^\[OK' "$OUT/psc-check.txt") binaries load on the console with this overlay"
 # libz.so.1 is replaced under the console's own programs: each of them must load as before
 U=$(for f in /device/usr/lib/*.so* /device/lib/*.so* /device/usr/bin/* /device/usr/sbin/*; do
-      [ -f "$f" ] && [ ! -L "$f" ] && $H-readelf -d "$f" 2>/dev/null | grep -q 'libz.so.1' && echo "$f"; done)
+      [ -f "$f" ] && [ ! -L "$f" ] && $H-readelf -d "$f" 2>/dev/null | grep -q 'libz.so.1' && echo "$f"; done; true)
 psc-check --device-root /device $U > "$B/zbase.txt" 2>&1 || true
 psc-check --device-root "$COMBO" $U > "$OUT/psc-check-libz-users.txt" 2>&1 || true
 nb=$(grep -c '^\[FAIL' "$B/zbase.txt" || true); nn=$(grep -c '^\[FAIL' "$OUT/psc-check-libz-users.txt" || true)
