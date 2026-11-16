@@ -8,6 +8,7 @@
 #
 # Layout under /usr:
 #   libexec/bluetooth/bluetoothd                 the daemon (HID, HOGP, A2DP sink off)
+#   bin/bluetoothctl                             client with the pairing agent (readline static)
 #   lib/libglib-2.0.so.0 libpcre2-8.so.0 libffi.so.8
 #   lib/psc-bt/main.conf                         passed with -f (/etc is read-only)
 #   share/dbus-1/system.d/bluetooth.conf         D-Bus policy (the console's system.conf
@@ -22,7 +23,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$(dirname "$HERE")/compositor/common.sh"     # cache, headers, cross file
 OUT="$REPO/out/bt"; mkdir -p "$OUT"
 
-BLUEZ=5.88; GLIB=2.90.1; LIBFFI=3.8.1; PCRE2=10.49
+BLUEZ=5.88; GLIB=2.90.1; LIBFFI=3.8.1; PCRE2=10.49; READLINE=8.3
 fetch_sha https://www.kernel.org/pub/linux/bluetooth/bluez-$BLUEZ.tar.xz bluez-$BLUEZ.tar.xz \
   6952c39eb5f8b0ee712cc50ab3bcff03be17c410dd97ca640f4849d9a1653ba3
 fetch_sha https://download.gnome.org/sources/glib/${GLIB%.*}/glib-$GLIB.tar.xz glib-$GLIB.tar.xz \
@@ -31,6 +32,8 @@ fetch_sha https://github.com/libffi/libffi/releases/download/v$LIBFFI/libffi-$LI
   81e879c094cc5ec3186c48510c6385ac6b3e866192e8bc71a35245703757ee40
 fetch_sha https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2/pcre2-$PCRE2.tar.bz2 pcre2-$PCRE2.tar.bz2 \
   53c156e1ba416a20da8e65395daa132da0d80e76910424caca3fcdae7831d384
+fetch_sha https://ftp.gnu.org/gnu/readline/readline-$READLINE.tar.gz readline-$READLINE.tar.gz \
+  fe5383204467828cd495ee8d1d3c037a7eba1389c22bc6a041f627976f9061cc
 
 console_headers
 # libdbus headers of the console's version (1.10); linking resolves to its own library
@@ -77,16 +80,25 @@ for l in glib-2.0 gio-2.0 gobject-2.0 gmodule-2.0; do
   [ -e "$SYSROOT/usr/lib/lib$l.so" ] && ln -sfn "$SYSROOT/usr/lib/lib$l.so" "/opt/psc/devlink/lib$l.so"
 done
 
-# ---- BlueZ: bluetoothd only (Lumen drives it over D-Bus; no readline client/tools)
+# ---- readline, static into bluetoothctl (the console has 5.2), on the console's libtinfo.so.5
+unpack readline-$READLINE.tar.gz readline; cd "$B/readline"
+step readline-configure ./configure --host=$H --prefix=/usr --libdir=/usr/lib --disable-shared --enable-static \
+   --with-curses --disable-install-examples CFLAGS="$PSC_FLAGS -O2 -fPIC"
+step readline-build make -j4
+step readline-sysroot make install-static install-headers DESTDIR="$SYSROOT"
+# -lreadline must find this archive, not the console's libreadline.so.5 (devlink, searched first)
+rm -f /opt/psc/devlink/libreadline.so /opt/psc/devlink/libhistory.so
+
+# ---- BlueZ: bluetoothd + bluetoothctl (its built-in agent pairs controllers; Lumen runs it)
 unpack bluez-$BLUEZ.tar.xz bluez; cd "$B/bluez"
 for p in "$HERE"/patches/*.patch; do [ -f "$p" ] && { echo "patch $(basename "$p")"; patch -p1 < "$p"; }; done
 step bluez-configure ./configure --host=$H --prefix=/usr --sysconfdir=/etc --localstatedir=/run/lumen-bt \
    --libexecdir=/usr/libexec --with-dbusconfdir=/usr/share --disable-systemd --disable-cups --disable-obex \
-   --disable-mesh --disable-manpages --disable-client --disable-monitor --disable-udev --disable-tools \
+   --disable-mesh --disable-manpages --enable-client --disable-monitor --disable-udev --disable-tools \
    --disable-hid2hci --disable-midi --disable-a2dp --disable-avrcp --disable-bap --disable-bass \
    --disable-mcp --disable-vcp --disable-micp --disable-ccp --disable-csip --disable-asha \
    --disable-test --disable-library --enable-hid --enable-hog \
-   CFLAGS="$PSC_FLAGS -O2" PKG_CONFIG=/opt/psc/bin/cw-pkg-config
+   CFLAGS="$PSC_FLAGS -O2" LIBS="-ltinfo" PKG_CONFIG=/opt/psc/bin/cw-pkg-config
 step bluez-build make -j4
 step bluez-install make install DESTDIR="$STAGE"
 grep -E "^ *(HID|HOG|A2DP|Input)" "$B/bluez-configure.log" > "$OUT/bluez-config.txt" || true
@@ -109,14 +121,15 @@ AutoEnable = true
 ReconnectAttempts = 7
 ReconnectIntervals = 1,2,4,8,16,32,64
 CONF
-echo "bluez=$BLUEZ glib=$GLIB libffi=$LIBFFI pcre2=$PCRE2" > "$STAGE/usr/lib/psc-bt/VERSIONS"
+echo "bluez=$BLUEZ glib=$GLIB libffi=$LIBFFI pcre2=$PCRE2 readline=$READLINE" > "$STAGE/usr/lib/psc-bt/VERSIONS"
 
 # ---- package: run-time files only
 rm -rf "$STAGE/usr/include" "$STAGE/usr/lib/pkgconfig" "$STAGE/usr/share/man" "$STAGE/usr/share/doc" \
        "$STAGE/usr/share/gettext" "$STAGE/usr/share/glib-2.0" "$STAGE/usr/share/aclocal" "$STAGE/usr/share/bash-completion" \
-       "$STAGE/usr/share/zsh" "$STAGE/usr/share/info" "$STAGE/usr/share/gdb" "$STAGE/usr/bin" "$STAGE/usr/lib/glib-2.0" \
+       "$STAGE/usr/share/zsh" "$STAGE/usr/share/info" "$STAGE/usr/share/gdb" "$STAGE/usr/lib/glib-2.0" \
        "$STAGE/etc" "$STAGE/usr/share/locale" "$STAGE/usr/libexec/installed-tests"
 # what bluetoothd does not use
+find "$STAGE/usr/bin" -type f ! -name bluetoothctl -delete 2>/dev/null; find "$STAGE/usr/bin" -type l -delete 2>/dev/null
 rm -f "$STAGE"/usr/lib/libgirepository-2.0.so* "$STAGE"/usr/lib/libpcre2-posix.so* "$STAGE/usr/libexec/gio-launch-desktop"
 find "$STAGE" -name '*.a' -delete; find "$STAGE" -name '*.la' -delete
 find "$STAGE/usr" -type f -exec sh -c 'file "$1" | grep -q ELF && arm-linux-gnueabihf-strip --strip-unneeded "$1"' _ {} \; 2>/dev/null

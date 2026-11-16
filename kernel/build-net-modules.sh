@@ -17,7 +17,7 @@
 #   - vermagic "4.4.22 SMP preempt ARMv7 p2v8", no GOT references
 #   - every undefined symbol of a module is exported by the stock kernel or by another
 #     module of this set (then it must be loaded first: the load order is printed)
-# Output: out/kernel-net/{modules/*.ko,config.diff,check.txt,load-order.txt}
+# Output: out/kernel-net/{modules/*.ko,config.diff,check.txt,load-order.txt,psc-netmod-stock.tar.gz}
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(dirname "$HERE")"
@@ -130,3 +130,10 @@ print("\n".join(order))
 EOF
 echo "== load order: $OUT/load-order.txt"
 grep -q "^ALL OK" "$OUT/check.txt"
+# package for the frontend: modules + load order + checksums, for this kernel build only
+# (the frontend loads them only when uname -v is the stock build and the feature is missing)
+P="$(mktemp -d)"; mkdir -p "$P/netmod"
+cp "$OUT"/modules/*.ko "$OUT/modules/SHA256SUMS" "$OUT/load-order.txt" "$P/netmod/"
+echo "#1 SMP PREEMPT Sun Sep 9 15:21:14 UTC 2018" > "$P/netmod/KERNEL"   # uname -v of the stock build
+tar czf "$OUT/psc-netmod-stock.tar.gz" -C "$P" netmod; rm -rf "$P"
+ls -la "$OUT/psc-netmod-stock.tar.gz"
