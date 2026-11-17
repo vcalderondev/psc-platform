@@ -3,6 +3,37 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [2.5.0] - 2026-11-17
+
+Wi-Fi, Bluetooth controllers, USB Ethernet and SDL3 for Lumen PSX, all from RAM: new
+packages a frontend unpacks to /tmp or overlays on /usr; nothing on the eMMC changes.
+Verified on the console: SDL3 runs Lumen on Weston 16; on Sony's stock kernel the USB
+Ethernet modules load. Not yet tried with real Wi-Fi / Bluetooth / Ethernet adapters.
+
+### Added
+- `psc-sdl3.tar.gz` (`sdl/build.sh`): SDL3 3.4.20 and sdl2-compat 2.32.74 (the SDL2 API
+  on SDL3) for /usr: Wayland with xdg-shell, GLES, ALSA, udev and HIDAPI over hidraw
+  (DualShock 4, DualSense, Switch Pro, Xbox pads). Every system library is loaded at run
+  time; psc-check covers the console's own SDL2_image/ttf/mixer and Lumen against it.
+- `psc-net.tar.gz` (`net/build.sh`): OpenSSL 4.1.0, wpa_supplicant 2.12 (+ wpa_cli,
+  wpa_passphrase), iw 6.17, libnl 3.12.0 (genl), curl 8.23.0, zlib 1.4, BusyBox 1.38.0
+  ntpd, Mozilla's CA bundle (2026-11-05) and the linux-firmware 20261019 files the stock
+  kernel's Wi-Fi and Bluetooth drivers ask for. Smoke-tested on the console's ROOTFS1
+  under ARMv7 emulation: HTTPS with the bundled CAs, NTP.
+- `psc-bt.tar.gz` (`bt/build.sh`): BlueZ 5.88 (`bluetoothd` with input and HID over GATT,
+  `bluetoothctl` with readline 8.3 linked in) on GLib 2.90.1, libffi 3.8.1, PCRE2 10.49;
+  the console's libdbus 1.10 and system bus.
+- `psc-netmod-stock.tar.gz` (`kernel/build-net-modules.sh`): 33 modules for Sony's stock
+  4.4.22 kernel: mac80211 with mt7601u, rt2800usb and rtl8xxxu; Bluetooth with btusb and
+  hidp; usbnet with r8152, ax88179_178a, asix, cdc_ether/ncm and smsc95xx. Checked
+  offline against the stock image (vermagic, every symbol exported, no built-in change).
+  ath9k and backports are not possible from RAM (relay; a built-in cfg80211).
+
+### Notes
+- This release was assembled on a workstation while the CI was unavailable: the
+  components that did not change are the 2.4.1 release's files (checked against its
+  SHA256SUMS); the four new packages were built with the recipes at this tag.
+
 ## [2.4.1] - 2026-11-15
 
 ### Fixed

@@ -47,6 +47,12 @@ jobs:
         run: $PSC_TOOLCHAIN/psc sh psc-platform/cores/build.sh all
       - name: PPSSPP (PSP, GLES)
         run: $PSC_TOOLCHAIN/psc sh psc-platform/cores/ppsspp/build.sh
+      - name: SDL3 + sdl2-compat (overlay)
+        run: $PSC_TOOLCHAIN/psc sh psc-platform/sdl/build.sh
+      - name: Network (Wi-Fi, TLS, curl, NTP, firmware)
+        run: $PSC_TOOLCHAIN/psc sh psc-platform/net/build.sh
+      - name: Bluetooth (BlueZ, GLib)
+        run: $PSC_TOOLCHAIN/psc sh psc-platform/bt/build.sh
       # Kernel modules for the stock Sony kernel (overlay.ko, xpad.ko), checked against the
       # stock BOOTIMG2 image, a private input: Sony's binary is never published.
       - name: Kernel modules (Sony 4.4.22 + overlay/xpad)
@@ -56,6 +62,7 @@ jobs:
           sudo chown -R "$(id -u)" psc-platform/out   # earlier container steps leave it root-owned
           gh release download psc-private-v1 -R vcalderondev/psc-sysroot -p stock-bootimg2.img -D "$RUNNER_TEMP" --clobber
           PSC_STOCK_BOOTIMG="$RUNNER_TEMP/stock-bootimg2.img" sh psc-platform/kernel/build-modules.sh
+          PSC_STOCK_BOOTIMG="$RUNNER_TEMP/stock-bootimg2.img" sh psc-platform/kernel/build-net-modules.sh
           rm -f "$RUNNER_TEMP/stock-bootimg2.img"
       # Lumen's boot payload, UNSIGNED (no key in this repository or its CI): lumen's release
       # signs it with .github/actions/boot-payload from a private input.
@@ -76,6 +83,10 @@ jobs:
           cp $O/cores/psc-check.txt "$D/cores-psc-check.txt"
           cat $O/cores/*.psc-check.txt >> "$D/cores-psc-check.txt"
           cp $O/debug/psc-crash.so "$D/"
+          cp $O/sdl/psc-sdl3.tar.gz $O/net/psc-net.tar.gz $O/bt/psc-bt.tar.gz $O/kernel-net/psc-netmod-stock.tar.gz "$D/"
+          cp $O/sdl/psc-check.txt "$D/sdl-psc-check.txt"; cp $O/net/psc-check.txt "$D/net-psc-check.txt"
+          cp $O/net/psc-check-libz-users.txt "$D/net-psc-check-libz-users.txt"; cp $O/bt/psc-check.txt "$D/bt-psc-check.txt"
+          cp $O/kernel-net/check.txt "$D/kernel-net-modules-check.txt"
           cp $O/boot/payload.tar.gz "$D/psc-boot-payload.tar.gz"
           tar czf "$D/psc-kernel-modules.tar.gz" -C $O/kernel modules/overlay.ko modules/xpad.ko \
               modules/SHA256SUMS modules/check.txt config.diff
