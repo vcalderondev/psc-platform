@@ -3,6 +3,18 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Bluetooth audio in `psc-bt.tar.gz`: BlueZ is built with A2DP and AVRCP (and
+  `libbluetooth`), plus SBC 2.2 and bluez-alsa 5.0.0: `bin/bluealsad` (A2DP source for
+  headphones and speakers, D-Bus policy `share/dbus-1/system.d/org.bluealsa.conf`) and the ALSA
+  plugins in `lib/alsa-lib/`. The console's alsa-lib 1.1.2 only loads plugins from its
+  read-only `/usr/lib/alsa-lib`, so the package carries `lib/psc-bt/asound-bluealsa.conf`
+  (`pcm_type` / `ctl_type bluealsa` with `@LIB@` for the unpacked `lib/`, and the `bluealsa`
+  device) for `ALSA_CONFIG_PATH`; the plugins find the package's own libraries through an
+  `$ORIGIN/..` rpath, everything else is the console's (checked by the build). Usage in the header of `bt/build.sh`.
+
 ## [2.5.0] - 2026-11-17
 
 Wi-Fi, Bluetooth controllers, USB Ethernet and SDL3 for Lumen PSX, all from RAM: new
