@@ -30,7 +30,7 @@ fetch_sha https://w1.fi/releases/wpa_supplicant-$WPA.tar.gz wpa_supplicant-$WPA.
   08e23937e16d0155e55cab2b51f51fbe10d80a1aa91c4e15442645059b737ef6
 fetch_sha https://mirrors.edge.kernel.org/pub/software/network/iw/iw-$IW.tar.xz iw-$IW.tar.xz \
   7d182e498289ab39b257da6780d562e415377107f50358ee5b55b8cfe40b1e33
-fetch_sha https://github.com/thom311/libnl/releases/download/libnl3_$(echo $LIBNL | tr . _)/libnl-$LIBNL.tar.gz libnl-$LIBNL.tar.gz \
+fetch_sha https://github.com/thom311/libnl/releases/download/libnl$(echo $LIBNL | tr . _)/libnl-$LIBNL.tar.gz libnl-$LIBNL.tar.gz \
   fc51ca7196f1a3f5fdf6ffd3864b50f4f9c02333be28be4eeca057e103c0dd18
 fetch_sha https://curl.se/download/curl-$CURL.tar.xz curl-$CURL.tar.xz \
   8dadd7d2536a314f982ad05a651b713f426bf7d02cc2c76cffb9796f2218e6c5

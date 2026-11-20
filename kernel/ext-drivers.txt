@@ -1,0 +1,8 @@
+# Out-of-tree USB Wi-Fi drivers built against the stock 4.4.22 tree (build-net-modules.sh).
+# name  module  repository  commit  sha256 of the GitHub tarball of that commit
+# Realtek's own drivers (morrownr's maintained trees; 8192EU is rtl8xxxu's, in the kernel): cfg80211 is built into
+# the stock kernel, so mac80211-based backports cannot be loaded; these use cfg80211 only.
+rtl8821cu 8821cu  morrownr/8821cu-20210916        bda65aac150d2cde0df9603206eec23a6f3b77c4 73ceb08456344517e54b5344d03e4408b910144f5554198b511b1349eb9a623c
+rtl88x2bu 88x2bu  morrownr/88x2bu-20210702        418d71cc00cd18b4a671f8c49ecce9b19cbfd3c9 cffc015ecf064fa3f71c9d206597671eaf3d2f6b6a8911f78eacea4ea476128b
+rtl8812au 8812au  morrownr/8812au-20210820        4722250273e4316daf9d8688e9916ea94c36a5ff 95aea5dcf2a23edb351b80fc5da5826a6062b397747f32e890df8d585003091c
+rtl8821au 8821au  morrownr/8821au-20210708        1a819991f5b75e64dfcf922b96a6681f367cbba0 c97877fd86c051276e67ddbb4deee42fc59e7fe99d87a0f20e6aff53da210f38
