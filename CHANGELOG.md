@@ -3,6 +3,39 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [2.6.0] - 2026-11-20
+
+Bluetooth audio and many more USB Wi-Fi / Bluetooth adapters for Lumen PSX on Sony's stock
+kernel, still entirely from RAM. Built and gated here (psc-check, the stock-kernel module
+checks); on the console so far: a Realtek RTL8821C's Bluetooth pairs controllers with the
+new btrtl and its firmware.
+
+### Added
+- Many more USB Wi-Fi and Bluetooth adapters in `psc-netmod-stock.tar.gz` (Sony's stock
+  4.4.22 kernel), all checked against it like the rest (vermagic, every symbol exported by
+  the stock kernel or by a module of the set):
+  - Realtek Bluetooth: Linux 5.10's `btrtl` (`kernel/backport/`), which tells chips apart by
+    `lmp_subver` + `hci_rev` and loads each one's config: RTL8723D, RTL8821C, RTL8822B/C,
+    RTL8761B (4.4 gave an RTL8821C the RTL8821A's firmware: no controller), with their
+    firmware in `psc-net.tar.gz` (linux-firmware 20261019).
+  - Realtek Wi-Fi, out of tree (`kernel/ext-drivers.txt`, pinned by commit and sha256):
+    8821CU/8811CU, 88x2BU (8812BU/8822BU), 8812AU, 8821AU.
+  - The kernel's own: r8188eu (RTL8188EUS), rt2500usb, rt73usb, carl9170, ar5523 and ath3k,
+    rtl8xxxu's untested IDs, rt2800usb's unknown ones; their firmware in `psc-net.tar.gz`.
+- `psc-netmod-stock.tar.gz` also carries `aliases.txt` (`<module> <usb modalias glob>`) and
+  `depends.txt`: a frontend loads only the driver of the adapter that is plugged in.
+
+### Fixed
+- `net/build.sh`: libnl's download URL (the tag is `libnl3_12_0`).
+- Bluetooth audio in `psc-bt.tar.gz`: BlueZ is built with A2DP and AVRCP (and
+  `libbluetooth`), plus SBC 2.2 and bluez-alsa 5.0.0: `bin/bluealsad` (A2DP source for
+  headphones and speakers, D-Bus policy `share/dbus-1/system.d/org.bluealsa.conf`) and the ALSA
+  plugins in `lib/alsa-lib/`. The console's alsa-lib 1.1.2 only loads plugins from its
+  read-only `/usr/lib/alsa-lib`, so the package carries `lib/psc-bt/asound-bluealsa.conf`
+  (`pcm_type` / `ctl_type bluealsa` with `@LIB@` for the unpacked `lib/`, and the `bluealsa`
+  device) for `ALSA_CONFIG_PATH`; the plugins find the package's own libraries through an
+  `$ORIGIN/..` rpath, everything else is the console's (checked by the build). Usage in the header of `bt/build.sh`.
+
 ## [2.5.0] - 2026-11-17
 
 Wi-Fi, Bluetooth controllers, USB Ethernet and SDL3 for Lumen PSX, all from RAM: new

@@ -1,21 +1,36 @@
 #!/bin/sh
 # Build the PSC Bluetooth package from upstream sources: BlueZ 5.88 (bluetoothd) on GLib
-# 2.90.1 (+ libffi 3.8.1, PCRE2 10.49). Output: out/bt/psc-bt.tar.gz, laid out as /usr for
+# 2.90.1 (+ libffi 3.8.1, PCRE2 10.49), and Bluetooth audio: bluez-alsa 5.0.0 (bluealsad and
+# its ALSA plugins) with SBC 2.2. Output: out/bt/psc-bt.tar.gz, laid out as /usr for
 # a frontend to overlay from RAM (nothing on the eMMC changes). The console has no GLib;
 # its own libdbus 1.10 and system bus (dbus.service) are used as they are.
 #
 #   toolchain/psc sh psc-platform/bt/build.sh   (from the workspace folder)
 #
 # Layout under /usr:
-#   libexec/bluetooth/bluetoothd                 the daemon (HID, HOGP, A2DP sink off)
+#   libexec/bluetooth/bluetoothd                 the daemon (HID, HOGP, A2DP, AVRCP)
 #   bin/bluetoothctl                             client with the pairing agent (readline static)
-#   lib/libglib-2.0.so.0 libpcre2-8.so.0 libffi.so.8
+#   bin/bluealsad                                Bluetooth audio: A2DP source (SBC) for headsets
+#                                                and speakers, on the system bus as org.bluealsa
+#   lib/alsa-lib/libasound_module_{pcm,ctl}_bluealsa.so   the ALSA side of it
+#   lib/libglib-2.0.so.0 libgio-2.0.so.0 libpcre2-8.so.0 libffi.so.8 libbluetooth.so.3 libsbc.so.1
+#   lib/psc-bt/asound-bluealsa.conf              ALSA configuration of the "bluealsa" device, with
+#                                                @LIB@ where the package's lib/ is (see below)
 #   lib/psc-bt/main.conf                         passed with -f (/etc is read-only)
-#   share/dbus-1/system.d/bluetooth.conf         D-Bus policy (the console's system.conf
-#                                                includes this directory; reload the bus)
+#   share/dbus-1/system.d/bluetooth.conf         D-Bus policies (the console's system.conf
+#   share/dbus-1/system.d/org.bluealsa.conf          includes this directory; reload the bus)
 # Pairing keys live in /run/lumen-bt/lib/bluetooth (compile-time STORAGEDIR, tmpfs): a
 # frontend restores and saves them on the stick (their file names hold ':', which FAT
 # and exFAT refuse, so as an archive).
+#
+# Bluetooth audio, from RAM (the console's alsa-lib 1.1.2 only looks for plugins in its own
+# /usr/lib/alsa-lib, which is read-only): a frontend starts bluealsad once bluetoothd is up
+#   LD_LIBRARY_PATH=<pkg>/lib <pkg>/bin/bluealsad -p a2dp-source &
+# writes <pkg>/lib/psc-bt/asound-bluealsa.conf with @LIB@ replaced by <pkg>/lib, and runs the
+# programs that play sound with
+#   ALSA_CONFIG_PATH=/usr/share/alsa/alsa.conf:<that file>
+# and the ALSA device "bluealsa:DEV=<mac>,PROFILE=a2dp" (SDL: AUDIODEV; RetroArch:
+# audio_device). The plugins load the package's libraries through an $ORIGIN/.. rpath.
 # Gate: psc-check of every binary against the console with the compositor overlay and
 # this package on /usr.
 set -e
@@ -23,7 +38,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$(dirname "$HERE")/compositor/common.sh"     # cache, headers, cross file
 OUT="$REPO/out/bt"; mkdir -p "$OUT"
 
-BLUEZ=5.88; GLIB=2.90.1; LIBFFI=3.8.1; PCRE2=10.49; READLINE=8.3
+BLUEZ=5.88; GLIB=2.90.1; LIBFFI=3.8.1; PCRE2=10.49; READLINE=8.3; SBC=2.2; BLUEALSA=5.0.0
 fetch_sha https://www.kernel.org/pub/linux/bluetooth/bluez-$BLUEZ.tar.xz bluez-$BLUEZ.tar.xz \
   6952c39eb5f8b0ee712cc50ab3bcff03be17c410dd97ca640f4849d9a1653ba3
 fetch_sha https://download.gnome.org/sources/glib/${GLIB%.*}/glib-$GLIB.tar.xz glib-$GLIB.tar.xz \
@@ -34,6 +49,10 @@ fetch_sha https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2/p
   53c156e1ba416a20da8e65395daa132da0d80e76910424caca3fcdae7831d384
 fetch_sha https://ftp.gnu.org/gnu/readline/readline-$READLINE.tar.gz readline-$READLINE.tar.gz \
   fe5383204467828cd495ee8d1d3c037a7eba1389c22bc6a041f627976f9061cc
+fetch_sha https://www.kernel.org/pub/linux/bluetooth/sbc-$SBC.tar.xz sbc-$SBC.tar.xz \
+  a1ada76ef35e5af9c2fbd063754dc9e37a8d989417c6eb1ecebb089b1383ae9e
+fetch_sha https://github.com/arkq/bluez-alsa/archive/refs/tags/v$BLUEALSA.tar.gz bluez-alsa-$BLUEALSA.tar.gz \
+  e1249cbebd24925c977814f62adab71f2ebd771e28e6a4ac58bb1ac97ce3beb5
 
 console_headers
 # libdbus headers of the console's version (1.10); linking resolves to its own library
@@ -41,7 +60,9 @@ DEB=https://archive.debian.org/debian/pool/main
 f=libdbus-1-dev_1.10.32-0+deb9u1_armhf.deb; fetch "$DEB/d/dbus/$f" "$f"; dpkg -x "$CACHE/$f" "$SYSROOT"
 rm -f "$SYSROOT"/usr/lib/arm-linux-gnueabihf/libdbus-1.a
 # build-machine tools: GLib 2.90 needs meson >= 1.4 (the toolchain has 1.0); bzip2 for PCRE2
-apt-get update -qq >/dev/null && apt-get install -y -qq --no-install-recommends python3-pip bzip2 lbzip2 >/dev/null 2>&1
+# (+ autotools: the bluez-alsa tag has no configure script)
+apt-get update -qq >/dev/null && apt-get install -y -qq --no-install-recommends python3-pip bzip2 lbzip2 \
+   autoconf automake libtool libglib2.0-dev-bin patchelf >/dev/null 2>&1   # gdbus-codegen, rpath of the ALSA plugins
 pip3 install -q --break-system-packages 'meson>=1.4' packaging >/dev/null 2>&1
 hash -r; echo "meson $(meson --version)"
 cross_file
@@ -89,18 +110,58 @@ step readline-sysroot make install-static install-headers DESTDIR="$SYSROOT"
 # -lreadline must find this archive, not the console's libreadline.so.5 (devlink, searched first)
 rm -f /opt/psc/devlink/libreadline.so /opt/psc/devlink/libhistory.so
 
-# ---- BlueZ: bluetoothd + bluetoothctl (its built-in agent pairs controllers; Lumen runs it)
+# ---- BlueZ: bluetoothd + bluetoothctl (its built-in agent pairs controllers; Lumen runs it);
+# A2DP / AVRCP for audio devices, and libbluetooth (bluez-alsa links it)
 unpack bluez-$BLUEZ.tar.xz bluez; cd "$B/bluez"
 for p in "$HERE"/patches/*.patch; do [ -f "$p" ] && { echo "patch $(basename "$p")"; patch -p1 < "$p"; }; done
 step bluez-configure ./configure --host=$H --prefix=/usr --sysconfdir=/etc --localstatedir=/run/lumen-bt \
    --libexecdir=/usr/libexec --with-dbusconfdir=/usr/share --disable-systemd --disable-cups --disable-obex \
    --disable-mesh --disable-manpages --enable-client --disable-monitor --disable-udev --disable-tools \
-   --disable-hid2hci --disable-midi --disable-a2dp --disable-avrcp --disable-bap --disable-bass \
+   --disable-hid2hci --disable-midi --enable-a2dp --enable-avrcp --disable-bap --disable-bass \
    --disable-mcp --disable-vcp --disable-micp --disable-ccp --disable-csip --disable-asha \
-   --disable-test --disable-library --enable-hid --enable-hog \
+   --disable-test --enable-library --enable-hid --enable-hog \
    CFLAGS="$PSC_FLAGS -O2" LIBS="-ltinfo" PKG_CONFIG=/opt/psc/bin/cw-pkg-config
 step bluez-build make -j4
 step bluez-install make install DESTDIR="$STAGE"
+step bluez-sysroot make install DESTDIR="$SYSROOT"
+ln -sfn "$SYSROOT/usr/lib/libbluetooth.so" /opt/psc/devlink/libbluetooth.so
+
+# ---- SBC: the A2DP codec every headset speaks
+unpack sbc-$SBC.tar.xz sbc; cd "$B/sbc"
+step sbc-configure ./configure --host=$H --prefix=/usr --libdir=/usr/lib --disable-static --disable-tools \
+   --disable-tester CFLAGS="$PSC_FLAGS -O2"
+step sbc-build make -j4
+inst sbc .
+ln -sfn "$SYSROOT/usr/lib/libsbc.so" /opt/psc/devlink/libsbc.so
+
+# ---- bluez-alsa: bluealsad (A2DP source) and the ALSA plugins. The console's alsa-lib is
+# 1.1.2; its headers are the toolchain's (Debian stretch). patches-bluez-alsa/ adds what 5.0.0's
+# ALSA plugin uses from alsa-lib 1.1.6 (snd_pcm_ioplug_avail, snd_pcm_areas_copy_wrap).
+unpack bluez-alsa-$BLUEALSA.tar.gz bluez-alsa; cd "$B/bluez-alsa"
+for p in "$HERE"/patches-bluez-alsa/*.patch; do [ -f "$p" ] && { echo "patch $(basename "$p")"; patch -p1 < "$p"; }; done
+# libtool .la files of our libraries would put the build's sysroot into the binaries' rpath
+rm -f "$SYSROOT"/usr/lib/libsbc.la "$SYSROOT"/usr/lib/libbluetooth.la
+step bluealsa-autoreconf autoreconf -fi
+step bluealsa-configure ./configure --host=$H --prefix=/usr --libdir=/usr/lib \
+   --with-alsaplugindir=/usr/lib/alsa-lib --with-alsaconfdir=/usr/share/alsa/alsa.conf.d \
+   --with-dbusconfdir=/usr/share/dbus-1/system.d --disable-aplay --disable-rfcomm --disable-hcitop \
+   --disable-a2dpconf --disable-systemd --disable-upower --disable-ofono \
+   GDBUS_CODEGEN=/usr/bin/gdbus-codegen CFLAGS="$PSC_FLAGS -O2" PKG_CONFIG=/opt/psc/bin/cw-pkg-config \
+   LDFLAGS="-Wl,-rpath-link=$SYSROOT/usr/lib -Wl,--as-needed" LIBS="-lgmodule-2.0"   # our gmodule for gio
+step bluealsa-build make -j4
+step bluealsa-install make install DESTDIR="$STAGE"
+# the plugins are loaded into programs that know nothing of the package: they find its
+# libraries (libbluetooth...) next to their own folder, wherever it is unpacked
+for so in "$STAGE"/usr/lib/alsa-lib/*.so; do patchelf --set-rpath '$ORIGIN/..' "$so"; done
+grep -E "^ *(A2DP|SBC|ALSA|AAC|aptX)" "$B/bluealsa-configure.log" >> "$OUT/bluez-config.txt" 2>/dev/null || true
+# the "bluealsa" device for an ALSA that does not look in the package for its plugins:
+# the add-on configuration plus where pcm_type / ctl_type bluealsa are (@LIB@ = <pkg>/lib)
+mkdir -p "$STAGE/usr/lib/psc-bt"
+{ echo "# ALSA configuration of Bluetooth audio (bluez-alsa $BLUEALSA), for ALSA_CONFIG_PATH."
+  echo "# @LIB@ is the package's lib/ folder once unpacked (the frontend replaces it)."
+  echo 'pcm_type.bluealsa { lib "@LIB@/alsa-lib/libasound_module_pcm_bluealsa.so" }'
+  echo 'ctl_type.bluealsa { lib "@LIB@/alsa-lib/libasound_module_ctl_bluealsa.so" }'
+  cat "$STAGE/usr/share/alsa/alsa.conf.d/20-bluealsa.conf"; } > "$STAGE/usr/lib/psc-bt/asound-bluealsa.conf"
 grep -E "^ *(HID|HOG|A2DP|Input)" "$B/bluez-configure.log" > "$OUT/bluez-config.txt" || true
 
 # ---- configuration (read with -f; /etc is read-only)
@@ -121,7 +182,7 @@ AutoEnable = true
 ReconnectAttempts = 7
 ReconnectIntervals = 1,2,4,8,16,32,64
 CONF
-echo "bluez=$BLUEZ glib=$GLIB libffi=$LIBFFI pcre2=$PCRE2 readline=$READLINE" > "$STAGE/usr/lib/psc-bt/VERSIONS"
+echo "bluez=$BLUEZ glib=$GLIB libffi=$LIBFFI pcre2=$PCRE2 readline=$READLINE sbc=$SBC bluez-alsa=$BLUEALSA" > "$STAGE/usr/lib/psc-bt/VERSIONS"
 
 # ---- package: run-time files only
 rm -rf "$STAGE/usr/include" "$STAGE/usr/lib/pkgconfig" "$STAGE/usr/share/man" "$STAGE/usr/share/doc" \
@@ -129,11 +190,26 @@ rm -rf "$STAGE/usr/include" "$STAGE/usr/lib/pkgconfig" "$STAGE/usr/share/man" "$
        "$STAGE/usr/share/zsh" "$STAGE/usr/share/info" "$STAGE/usr/share/gdb" "$STAGE/usr/lib/glib-2.0" \
        "$STAGE/etc" "$STAGE/usr/share/locale" "$STAGE/usr/libexec/installed-tests"
 # what bluetoothd does not use
-find "$STAGE/usr/bin" -type f ! -name bluetoothctl -delete 2>/dev/null; find "$STAGE/usr/bin" -type l -delete 2>/dev/null
+find "$STAGE/usr/bin" -type f ! -name bluetoothctl ! -name bluealsad -delete 2>/dev/null; find "$STAGE/usr/bin" -type l -delete 2>/dev/null
+rm -rf "$STAGE/usr/share/alsa"   # its 20-bluealsa.conf is in lib/psc-bt/asound-bluealsa.conf
 rm -f "$STAGE"/usr/lib/libgirepository-2.0.so* "$STAGE"/usr/lib/libpcre2-posix.so* "$STAGE/usr/libexec/gio-launch-desktop"
 find "$STAGE" -name '*.a' -delete; find "$STAGE" -name '*.la' -delete
 find "$STAGE/usr" -type f -exec sh -c 'file "$1" | grep -q ELF && arm-linux-gnueabihf-strip --strip-unneeded "$1"' _ {} \; 2>/dev/null
 [ -f "$STAGE/usr/share/dbus-1/system.d/bluetooth.conf" ] || { echo "bluetooth.conf (D-Bus policy) missing"; find "$STAGE" -name 'bluetooth.conf'; exit 1; }
+# nothing may point into the build machine
+for e in $(find "$STAGE/usr" -type f | xargs file | grep ELF | cut -d: -f1); do
+  arm-linux-gnueabihf-readelf -d "$e" | grep -qE 'R(UN)?PATH.*/opt/psc' && { echo "$e has a build rpath"; exit 1; }
+done
+for f in bin/bluealsad lib/alsa-lib/libasound_module_pcm_bluealsa.so share/dbus-1/system.d/org.bluealsa.conf lib/psc-bt/asound-bluealsa.conf; do
+  [ -f "$STAGE/usr/$f" ] || { echo "Bluetooth audio: $f missing"; exit 1; }
+done
+# the ALSA plugins are loaded into the frontend and RetroArch, which have no LD_LIBRARY_PATH
+# for the package: what they need is the console's or in the package's lib/ ($ORIGIN/..)
+for so in "$STAGE"/usr/lib/alsa-lib/*.so; do
+  bad=$(arm-linux-gnueabihf-readelf -d "$so" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p' | while read -r n; do
+          [ -e "/device/usr/lib/$n" ] || [ -e "/device/lib/$n" ] || [ -e "$STAGE/usr/lib/$n" ] || echo "$n"; done)
+  [ -z "$bad" ] || { echo "$(basename "$so") needs libraries the console lacks: $bad"; exit 1; }
+done
 tar czf "$OUT/psc-bt.tar.gz" -C "$STAGE/usr" .
 ( cd "$STAGE/usr" && find . -type f -o -type l | sort ) > "$OUT/psc-bt.files"
 
