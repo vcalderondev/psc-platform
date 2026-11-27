@@ -3,6 +3,14 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Cores moved to the current upstream commits (2026-11-27): `fceumm` (21 commits),
+  `pcsx_rearmed` (20), `genesis_plus_gx` (4), `snes9x`, `gambatte` and `mupen64plus_next`
+  (1 each). `gpsp` was already current, as are RetroArch 1.22.2, the joypad profiles
+  v1.22.0 and PPSSPP v1.20.4 (the latest upstream releases).
+
 ## [2.7.0] - 2026-11-26
 
 The stock-kernel modules no longer freeze the console, and a DualSense gets the standard
