@@ -3,6 +3,32 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [2.7.0] - 2026-11-26
+
+The stock-kernel modules no longer freeze the console, and a DualSense gets the standard
+gamepad layout. On the console: the RTL8821CU's Wi-Fi driver loads and scans, the USB
+Ethernet drivers load, and a DualSense on Bluetooth plays with RetroArch's stock profile.
+
+### Added
+- `hid-dualsense.ko` in `psc-netmod-stock.tar.gz` (`kernel/backport/hid/`): Linux 4.4 has
+  no DualSense driver, so `hid-generic` numbered the pad in the order of its HID report
+  (Square first, the right stick on `ABS_Z` / `ABS_RZ`) and no controller profile fitted.
+  The driver maps the pad's simple report to the codes `hid-playstation` uses, on Bluetooth
+  and on a cable, for the DualSense and the DualSense Edge, and takes a pad that is already
+  connected. No rumble, lights, touchpad or motion.
+- `build-net-modules.sh` fails when an option it switched on is read by a header shared
+  with the stock kernel (`config.abi`): such an option changes the layout of a structure
+  the stock kernel was built without.
+
+### Fixed
+- Every network module of 2.6.0 could freeze the console the moment its device registered
+  (seen with `8821cu`): the staging `r8188eu` driver selected `CONFIG_WIRELESS_EXT`, which
+  adds fields to `struct net_device` and moved `netdev_ops` by 8 bytes against the stock
+  kernel. `r8188eu` is no longer built.
+
+### Removed
+- `r8188eu.ko` (RTL8188EUS adapters): see Fixed.
+
 ## [2.6.0] - 2026-11-20
 
 Bluetooth audio and many more USB Wi-Fi / Bluetooth adapters for Lumen PSX on Sony's stock

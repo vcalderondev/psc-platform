@@ -14,8 +14,11 @@
 #
 # Same pinned source, toolchain and flags as build-modules.sh. Sony's defconfig plus the
 # options below as =m (bool sub-options as =y, they only end up inside those modules).
-# Left out: ath9k_htc (its common part needs relay, built-in only and off in the stock
-# kernel); rtl8192cu (rtl8xxxu drives the same chips); zd1211rw (no firmware in
+# Left out: r8188eu (staging: it selects WIRELESS_EXT, which adds two fields to struct
+# net_device, before netdev_ops. The stock kernel is built without it, so EVERY network module
+# of a build with it writes netdev_ops 8 bytes off and the console freezes when a network
+# device registers: that was the 8821cu freeze); ath9k_htc (its common part needs relay,
+# built-in only and off in the stock kernel); rtl8192cu (rtl8xxxu drives the same chips); zd1211rw (no firmware in
 # linux-firmware). Not possible from RAM: backports (it needs cfg80211 as a module; the stock
 # kernel has it built in, so its cfg80211.ko would clash with the kernel's).
 # Checks, against the stock kernel in LRECOVERY.EPB / PSC_STOCK_BOOTIMG:
@@ -55,7 +58,6 @@ OPTS="
 --module RT2X00 --module RT2800USB --enable RT2800USB_RT33XX --enable RT2800USB_RT35XX
   --enable RT2800USB_RT3573 --enable RT2800USB_RT53XX --enable RT2800USB_RT55XX
   --enable RT2800USB_UNKNOWN --module RT2500USB --module RT73USB
---enable STAGING --module R8188EU --enable 88EU_AP_MODE
 --enable ATH_CARDS --module CARL9170 --module AR5523
 --module BT --enable BT_BREDR --enable BT_LE --module BT_HIDP
 --module BT_HCIBTUSB --enable BT_HCIBTUSB_BCM --enable BT_HCIBTUSB_RTL --module BT_ATH3K
@@ -70,6 +72,8 @@ docker run --rm --network none -v "$TGZ":/src.tgz:ro -v "$OUT":/out -v "$HERE/ba
   -v "$EXT_LIST":/ext-drivers.txt:ro -e JOBS="$JOBS" -e OPTS="$OPTS" "$IMAGE" sh -ec '
   mkdir -p /b /o && cd /b && tar xzf /src.tgz --strip-components=1
   cp /backport/bluetooth/* drivers/bluetooth/   # newer driver sources (backport/README.md)
+  # the DualSense with the standard gamepad layout (backport/hid/hid-dualsense.c)
+  cp /backport/hid/*.c drivers/hid/ && echo "obj-m += hid-dualsense.o" >> drivers/hid/Makefile
   M="make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- HOSTCFLAGS=-fcommon O=/o KCFLAGS=-fno-PIE KAFLAGS=-fno-PIE"
   $M aiv8167_rockman_emmc_defconfig > /out/build.log 2>&1
   cp /o/.config /out/config.stock
@@ -82,6 +86,18 @@ docker run --rm --network none -v "$TGZ":/src.tgz:ro -v "$OUT":/out -v "$HERE/ba
   asked=$(echo $OPTS | tr " " "\n" | grep -v "^--" | sort -u)
   grep "^> CONFIG_.*=y$" /out/config.diff | sed "s/^> CONFIG_//; s/=y$//" | sort -u \
     | grep -vxF "$asked" > /out/config.new-y || true
+  # ... and none of them may be read by a header the built-in kernel shares with the
+  # modules: such an option changes a struct both sides use (WIRELESS_EXT -> struct
+  # net_device). Headers that only this set of modules includes are left out.
+  : > /out/config.abi
+  for o in $(cat /out/config.new-y); do
+    grep -rlw "CONFIG_$o" include/ arch/arm/include/ 2>/dev/null \
+      | grep -vE "^include/net/(bluetooth/|mac80211\.h|ieee80211_radiotap\.h)|^include/linux/(usb/usbnet\.h|rtnetlink\.h$)" \
+      | sed "s|^|$o: |" >> /out/config.abi || true
+  done
+  if [ -s /out/config.abi ]; then
+    echo "FAIL: options that change headers shared with the stock kernel:"; cat /out/config.abi; exit 1
+  fi
   $M -j"$JOBS" Image modules >> /out/build.log 2>&1 || { tail -60 /out/build.log; exit 1; }
   rm -f /out/modules/*.ko /out/modules/*.undef
   find /o -name "*.ko" -exec cp {} /out/modules/ \;
