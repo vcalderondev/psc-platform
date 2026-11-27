@@ -3,7 +3,9 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [2.8.0] - 2026-11-27
+
+FinalBurn Neo for the arcade system, and every core at its current upstream commit.
 
 ### Added
 - FinalBurn Neo (`fbneo_libretro.so`, arcade) in `cores/cores.list`, with upstream's PSC
