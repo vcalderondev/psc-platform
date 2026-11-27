@@ -7,6 +7,7 @@
 # make target: the generic unix one with the 32-bit ARM dynarec (ARM mode) and NEON.
 # cores/patches/mupen64plus_next: the core gives control back to RetroArch before the
 # game's first VI (a ROM that never programs the VI froze RetroArch for good).
+# fbneo: upstream's PSC target links no libpthread (glibc 2.24 keeps it apart): LIBS adds it.
 # Patches: cores/patches/<name>/*.patch are applied (-p1) to the pinned source.
 fceumm           libretro/libretro-fceumm   fb919fb6fa881aaa6279b765d480220579e5c606  .        Makefile.libretro  platform=classic_armv8_a35
 snes9x           libretro/snes9x            204ea1c0b851f960cbf223075eb1c25641cb483c  libretro Makefile           platform=classic_armv8_a35
@@ -14,3 +15,4 @@ genesis_plus_gx  libretro/Genesis-Plus-GX   51348f65738b0c75f4b8b4488fbc67645e37
 gambatte         libretro/gambatte-libretro 138bcbbf311300a271896bf93a76370c72cab339  .        Makefile.libretro  platform=classic_armv8_a35
 gpsp             libretro/gpsp              5819380c2ffb0900219d700a382ee68c464ebb99  .        Makefile           platform=unix CPU_ARCH=arm HAVE_DYNAREC=1 TUNE=psc
 mupen64plus_next libretro/mupen64plus-libretro-nx 8623e490a8773fcb6c10f424cebbdb0ac44e88ea . Makefile          platform=unix ARCH=arm WITH_DYNAREC=arm HAVE_NEON=1 FORCE_GLES3=1 STRINGS=arm-linux-gnueabihf-strings TUNE=psc-arm
+fbneo            libretro/FBNeo             85c89235d5358aa3282d78d837e7682f77dee82f  src/burner/libretro Makefile platform=classic_armv8_a35 LIBS=-lpthread

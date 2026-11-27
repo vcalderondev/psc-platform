@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](http
 
 ## [Unreleased]
 
+### Added
+- FinalBurn Neo (`fbneo_libretro.so`, arcade) in `cores/cores.list`, with upstream's PSC
+  target `classic_armv8_a35` (NEON, Cyclone 68000). Lumen PSX's Arcade system already
+  launches it; until now the core had to be copied to the USB drive by hand. FinalBurn
+  Neo has its own non-commercial license.
+
 ### Changed
 - Cores moved to the current upstream commits (2026-11-27): `fceumm` (21 commits),
   `pcsx_rearmed` (20), `genesis_plus_gx` (4), `snes9x`, `gambatte` and `mupen64plus_next`

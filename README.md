@@ -12,7 +12,7 @@ build artefacts; it has no frontend logic of its own.
 | `retroarch/` | RetroArch 1.22.2 with PSC patches (`retroarch/patches/`: ALSA S16, HDMI without EDID for KMS, GLES 2 attributes on Wayland, `GET_STATUS` for a core without an `.info` file): Wayland xdg-shell + EGL/GLES 3.2 (KMS/GBM as a fallback context), ALSA, udev; links libwayland-client 1.26 (from the compositor overlay) and the console's libwayland-egl; plus the libretro joypad profiles | `out/retroarch/psc-retroarch.tar.gz` |
 | `tools/debug/` | `psc-crash.so`, an LD_PRELOAD crash reporter (registers, stack scan, library map; resolve with `retroarch.debug`) | `out/debug/psc-crash.so` |
 | `cores/pcsx_rearmed/` | PCSX-ReARMed libretro core, upstream `libretro/pcsx_rearmed` (pinned commit), upstream's PSC target `classic_armv8_a35` (NEON GPU, ari64 dynarec) | `out/cores/pcsx_rearmed_libretro.so` |
-| `cores/build.sh` | more libretro cores from pinned upstream commits (`cores/cores.list`): FCEUmm (NES), Snes9x (SNES), Genesis Plus GX (Mega Drive), Gambatte (Game Boy / Color), gpSP (GBA), Mupen64Plus-Next (N64, hardware rendered: GLideN64 on GLES 3); each with its PSC make target or Cortex-A35 tuning, static libstdc++, psc-check gate | `out/cores/<name>_libretro.so` |
+| `cores/build.sh` | more libretro cores from pinned upstream commits (`cores/cores.list`): FCEUmm (NES), Snes9x (SNES), Genesis Plus GX (Mega Drive), Gambatte (Game Boy / Color), gpSP (GBA), Mupen64Plus-Next (N64, hardware rendered: GLideN64 on GLES 3), FinalBurn Neo (arcade); each with its PSC make target or Cortex-A35 tuning, static libstdc++, psc-check gate | `out/cores/<name>_libretro.so` |
 | `cores/ppsspp/` | PPSSPP libretro core (PSP), upstream `hrydgard/ppsspp` (pinned release), hardware rendered on GLES 3, ARM32 JIT, no Vulkan, bundled FFmpeg; plus the assets it reads from RetroArch's system folder | `out/cores/ppsspp_libretro.so`, `out/cores/ppsspp-assets.tar.gz` |
 | `boot/` | Lumen's own USB boot payload: the signed `LDIAG.BIN` that Sony's `usb_watch` runs from the stick (mounts it, stops Sony's UI, splash, runs the frontend's `boot.sh`; nothing written to the eMMC). Built unsigned here (`build-payload.sh --pack-only`); signed by the frontend's release from a private input (`.github/actions/boot-payload`), verified with the console's own gpg/busybox under ARMv7 emulation | `out/boot/payload.tar.gz` (unsigned) |
 | `kernel/` | `overlay.ko` and `xpad.ko` for Sony's stock kernel (Linux 4.4.22, built from Sony's GPL source + Sony's defconfig with GCC 6.3), so a never-modded console runs the PSC compositor without a kernel flash; checked against the stock image (vermagic, symbols, provenance) | `out/kernel/modules/*.ko` |
@@ -168,7 +168,7 @@ from the USB stick. Lumen PSX installs these packages.
 | libseat | — | — | **0.9.1** (with Weston 16 only) | overlay on `/usr` (RAM) |
 | libdisplay-info | — | — | **0.2.0** (static, in Weston 16) | overlay on `/usr` (RAM) |
 | RetroArch | — (Sony's own `pcsx`) | 1.8.8 | **1.22.2** | USB (`lumen/retroarch`) |
-| PCSX-ReARMed | — | PSC fork (2019) | **upstream** `libretro/pcsx_rearmed` (2026-10) | USB (`lumen/cores`) |
+| PCSX-ReARMed | — | PSC fork (2019) | **upstream** `libretro/pcsx_rearmed` (2026-11) | USB (`lumen/cores`) |
 | Joypad profiles | — | RetroArch 1.8.8 set | **v1.22.0** | USB |
 | Boot hook (`LDIAG.BIN`) | — | Eris' loader (installs to the eMMC unless `USB_ONLY=1`) | **Lumen's payload** (RAM only) | USB (`d8781dae-…/`) |
 | overlayfs, xpad | not in the kernel | flashed Eris kernel (BOOTIMG1) | **modules from RAM** on the stock kernel; built in on Eris' | USB (in the payload) |
@@ -188,7 +188,7 @@ Lumen PSX uses `.github/actions/toolchain` and the release assets.
 
 psc-platform is free software under the GNU GPL v3.0 or later (`LICENSE`); the upstream
 components keep their own licenses (Wayland/Weston: MIT, RetroArch, PCSX-ReARMed,
-Mupen64Plus-Next and PPSSPP: GPL).
+Mupen64Plus-Next and PPSSPP: GPL; FinalBurn Neo: its own non-commercial license).
 The kernel modules are built from Sony's GPL-2.0 Linux source, imported in
 [lscorcia/linux-sony-psclassic](https://github.com/lscorcia/linux-sony-psclassic) (commit
 `d716d7e`, sha256-pinned in `kernel/build-modules.sh`), with `kernel/` as the build recipe.
