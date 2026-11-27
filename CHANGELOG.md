@@ -3,6 +3,22 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [2.8.0] - 2026-11-27
+
+FinalBurn Neo for the arcade system, and every core at its current upstream commit.
+
+### Added
+- FinalBurn Neo (`fbneo_libretro.so`, arcade) in `cores/cores.list`, with upstream's PSC
+  target `classic_armv8_a35` (NEON, Cyclone 68000). Lumen PSX's Arcade system already
+  launches it; until now the core had to be copied to the USB drive by hand. FinalBurn
+  Neo has its own non-commercial license.
+
+### Changed
+- Cores moved to the current upstream commits (2026-11-27): `fceumm` (21 commits),
+  `pcsx_rearmed` (20), `genesis_plus_gx` (4), `snes9x`, `gambatte` and `mupen64plus_next`
+  (1 each). `gpsp` was already current, as are RetroArch 1.22.2, the joypad profiles
+  v1.22.0 and PPSSPP v1.20.4 (the latest upstream releases).
+
 ## [2.7.0] - 2026-11-26
 
 The stock-kernel modules no longer freeze the console, and a DualSense gets the standard

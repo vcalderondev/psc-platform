@@ -19,7 +19,7 @@ JOBS="${JOBS:-4}"
 mkdir -p "$CACHE" "$B"
 . /opt/psc/bin/psc-env
 
-COMMIT=7b0e8f8fadfbce3d170d195b9d9eecaabfa08c8e   # libretro/pcsx_rearmed master, 2026-10-29
+COMMIT=830e0d7cc37e0437efca0298a1de2664ce007586   # libretro/pcsx_rearmed master, 2026-11-26
 TAR="pcsx_rearmed-$COMMIT.tar.gz"
 [ -s "$CACHE/$TAR" ] || { wget -q -T 30 -t 3 -O "$CACHE/$TAR.part" "https://github.com/libretro/pcsx_rearmed/archive/$COMMIT.tar.gz" &&
   mv -f "$CACHE/$TAR.part" "$CACHE/$TAR"; } || { echo "download failed"; exit 1; }
