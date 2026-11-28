@@ -3,6 +3,17 @@
 Every release lists the upstream version of each component in `versions.txt`.
 Format: [Keep a Changelog](https://keepachangelog.com/); versions: [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `hid-dualsense.ko`: the DualSense's battery, as a `power_supply` with scope Device
+  (`/sys/class/power_supply/ps-controller-battery-<address>/capacity` and `status`), as
+  `hid-playstation` gives it on current kernels. Over USB it is read from the full report
+  the pad already sends; over Bluetooth the driver turns the pad's full report (0x31) on
+  and repacks each one into the simple report (0x01) the HID descriptor describes before
+  the HID core parses it, so buttons, sticks and the PS button reach RetroArch, SDL and
+  lumen-buttons exactly as before. Lumen PSX shows the charge beside each controller.
+
 ## [2.8.0] - 2026-11-27
 
 FinalBurn Neo for the arcade system, and every core at its current upstream commit.
